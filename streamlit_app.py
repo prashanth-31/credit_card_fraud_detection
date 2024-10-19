@@ -82,7 +82,7 @@ X_combined = np.vstack((X_train_resampled, X_adv))
 y_combined = np.concatenate((y_train_resampled, y_train_resampled))  # Duplicate the labels
 
 # Train the model with the combined dataset
-history = model.fit(X_combined, y_combined, epochs=3, batch_size=32, class_weight=class_weight, validation_split=0.2)
+history = model.fit(X_combined, y_combined, epochs=2, batch_size=32, class_weight=class_weight, validation_split=0.2)
 
 # Function to calculate model performance
 def get_model_performance(model, X, y, threshold=0.5):
