@@ -9,6 +9,7 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 from sklearn.model_selection import train_test_split
 import tensorflow as tf
 from sklearn.preprocessing import StandardScaler
+from lime import lime_tabular
 
 # Load dataset
 data = pd.read_csv('creditcard.csv')  # Adjust with your dataset path
@@ -102,6 +103,24 @@ X_adv_test = scaler.transform(X_adv_test)
 # Create a SHAP explainer
 explainer = shap.KernelExplainer(model.predict, X_train_resampled[:100])  # Limit to 100 samples for faster SHAP calculations
 
+# Function to create LIME explanations
+def explain_with_lime(model, X_instance):
+    explainer = lime_tabular.LimeTabularExplainer(
+        training_data=X_train_resampled,
+        feature_names=[f"Feature {i+1}" for i in range(X_train_resampled.shape[1])],
+        class_names=["Not Fraud", "Fraud"],
+        mode='classification'
+    )
+    
+    # Explain the instance
+    exp = explainer.explain_instance(
+        data_row=X_instance,
+        predict_fn=model.predict,
+        num_features=10  # Number of features to include in explanation
+    )
+    
+    return exp
+
 # Main Streamlit app
 st.title("Fraud Detection Model Dashboard")
 
@@ -192,3 +211,13 @@ elif section == "Interactive Prediction Tool":
     st.subheader("Prediction Result")
     st.write(f"Prediction Probability: {prediction_prob[0][0]:.4f}")
     st.write(f"Prediction: {prediction}")
+    
+    # LIME explanation
+    if st.button("Explain Prediction with LIME"):
+        exp = explain_with_lime(model, transaction_input_scaled[0])
+        
+        # Display LIME explanation
+        st.subheader("LIME Explanation")
+        st.write(f"Prediction Probability: {prediction_prob[0][0]:.4f}")
+        exp.as_pyplot_figure()
+        st.pyplot()
