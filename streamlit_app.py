@@ -39,7 +39,7 @@ def get_model_performance(model, X, y):
     f1 = f1_score(y, y_pred)
     return acc, precision, recall, f1
 
-# Create a SHAP explainer
+# Create a SHAP KernelExplainer with a smaller dataset
 explainer = shap.KernelExplainer(model.predict, X_train[:100])  # Limit X_train for faster SHAP calculation
 
 # Main app
@@ -109,7 +109,9 @@ elif section == "Explainability":
     st.subheader("Per-Transaction Explanation")
     idx = st.slider("Select Transaction Index", 0, len(X_test)-1)
     st.write(f"Transaction: {X_test[idx]}")
-    shap.force_plot(explainer.expected_value, shap_values[idx], X_test[idx], matplotlib=True)
+    
+    shap_value_for_idx = explainer.shap_values(np.array([X_test[idx]]))
+    shap.force_plot(explainer.expected_value[0], shap_value_for_idx[0], X_test[idx], matplotlib=True)
     st.pyplot()
 
 # Interactive Prediction Tool Section
@@ -131,5 +133,5 @@ elif section == "Interactive Prediction Tool":
     # Show SHAP explanations for the prediction
     st.subheader("Explanation for the Prediction")
     shap_values_input = explainer.shap_values(transaction_input)
-    shap.force_plot(explainer.expected_value, shap_values_input[0], transaction_input, matplotlib=True)
+    shap.force_plot(explainer.expected_value[0], shap_values_input[0], transaction_input[0], matplotlib=True)
     st.pyplot()
