@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-import shap
+from lime.lime_tabular import LimeTabularExplainer
 from imblearn.over_sampling import SMOTE
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 from sklearn.model_selection import train_test_split
@@ -82,7 +82,7 @@ X_combined = np.vstack((X_train_resampled, X_adv))
 y_combined = np.concatenate((y_train_resampled, y_train_resampled))  # Duplicate the labels
 
 # Train the model with the combined dataset
-history = model.fit(X_combined, y_combined, epochs=1, batch_size=32, class_weight=class_weight, validation_split=0.2)
+history = model.fit(X_combined, y_combined, epochs=5, batch_size=32, class_weight=class_weight, validation_split=0.2)
 
 # Function to calculate model performance
 def get_model_performance(model, X, y, threshold=0.5):
@@ -98,9 +98,6 @@ def get_model_performance(model, X, y, threshold=0.5):
 X_adv_test = generate_adversarial_examples(X_test, epsilon=0.1)
 # Normalize adversarial examples to match the training data
 X_adv_test = scaler.transform(X_adv_test)
-
-# Create a SHAP explainer
-explainer = shap.KernelExplainer(model.predict, X_train_resampled[:100])  # Limit to 100 samples for faster SHAP calculations
 
 # Main Streamlit app
 st.title("Fraud Detection Model Dashboard")
@@ -155,22 +152,28 @@ elif section == "Adversarial Attacks":
     st.header("Adversarial Attacks")
     st.write("This section is optional and can be expanded based on your needs.")
 
-# Explainability Section
+# Explainability Section using LIME
 elif section == "Explainability":
-    st.header("Explainability with SHAP")
-    
+    st.header("Explainability with LIME")
+
+    # Create a LIME explainer
+    explainer = LimeTabularExplainer(X_train_resampled, feature_names=[f'Feature {i+1}' for i in range(X_train_resampled.shape[1])],
+                                      class_names=['Not Fraud', 'Fraud'], mode='classification')
+
     # Feature importance plot
-    st.subheader("Feature Importance Plot (SHAP)")
-    shap_values = explainer.shap_values(X_test[:100])  # Limit X_test for faster visualization
-    shap.summary_plot(shap_values, X_test[:100], show=False)
-    st.pyplot()
-    
-    # Per-transaction explanation
-    st.subheader("Per-Transaction Explanation")
+    st.subheader("Feature Importance for a Specific Prediction")
     idx = st.slider("Select Transaction Index", 0, len(X_test)-1)
-    st.write(f"Transaction: {X_test[idx]}")
-    shap.force_plot(explainer.expected_value, shap_values[idx], X_test[idx], matplotlib=True)
+    
+    # Get the explanation for the selected instance
+    exp = explainer.explain_instance(X_test[idx], model.predict, num_features=10)
+    
+    # Display the explanation
+    exp.as_pyplot_figure()
     st.pyplot()
+
+    # Show the instance details
+    st.write(f"Transaction: {X_test[idx]}")
+    st.write(f"Prediction Probability: {model.predict(X_test[idx].reshape(1, -1))[0][0]:.4f}")
 
 # Interactive Prediction Tool Section
 elif section == "Interactive Prediction Tool":
@@ -190,3 +193,4 @@ elif section == "Interactive Prediction Tool":
     prediction = "Fraud" if prediction_prob[0][0] > 0.5 else "Not Fraud"
     
     st.subheader("Prediction Result")
+  
