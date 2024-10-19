@@ -10,53 +10,41 @@ from sklearn.model_selection import train_test_split
 import tensorflow as tf
 from sklearn.preprocessing import StandardScaler
 
-# Caching data loading
-@st.cache
-def load_data():
-    data = pd.read_csv('creditcard.csv')  # Adjust with your dataset path
-    return data
+# Load dataset
+data = pd.read_csv('creditcard.csv')  # Adjust with your dataset path
+X = data.iloc[:, :-1].values  # Features
+y = data.iloc[:, -1].values  # Target (fraud/not fraud)
 
-# Caching data preprocessing
-@st.cache
-def preprocess_data(data):
-    X = data.iloc[:, :-1].values  # Features
-    y = data.iloc[:, -1].values  # Target (fraud/not fraud)
+# Normalize the data
+scaler = StandardScaler()
+X = scaler.fit_transform(X)
 
-    # Normalize the data
-    scaler = StandardScaler()
-    X = scaler.fit_transform(X)
+# Separate the classes
+X_class_0 = X[y == 0]
+y_class_0 = y[y == 0]
+X_class_1 = X[y == 1]
+y_class_1 = y[y == 1]
 
-    # Separate the classes
-    X_class_0 = X[y == 0]
-    y_class_0 = y[y == 0]
-    X_class_1 = X[y == 1]
-    y_class_1 = y[y == 1]
+# Split class 1 into train and test (2/3 for training, 1/3 for testing)
+n_class_1_train = int(len(X_class_1) * (2 / 3))
+n_class_1_test = len(X_class_1) - n_class_1_train
 
-    # Split class 1 into train and test (2/3 for training, 1/3 for testing)
-    n_class_1_train = int(len(X_class_1) * (2 / 3))
-    n_class_1_test = len(X_class_1) - n_class_1_train
+# Split class 0 into train and test (stratify based on the remaining class proportions)
+X_train_class_1 = X_class_1[:n_class_1_train]
+y_train_class_1 = y_class_1[:n_class_1_train]
+X_test_class_1 = X_class_1[n_class_1_train:]
+y_test_class_1 = y_class_1[n_class_1_train:]
 
-    # For class 0, take a proportionate split of the remaining data
-    X_train_class_1 = X_class_1[:n_class_1_train]
-    y_train_class_1 = y_class_1[:n_class_1_train]
-    X_test_class_1 = X_class_1[n_class_1_train:]
-    y_test_class_1 = y_class_1[n_class_1_train:]
+# For class 0, take a proportionate split of the remaining data
+X_train_class_0, X_test_class_0, y_train_class_0, y_test_class_0 = train_test_split(
+    X_class_0, y_class_0, test_size=n_class_1_test, random_state=42, stratify=y_class_0)
 
-    # Stratified split for class 0
-    X_train_class_0, X_test_class_0, y_train_class_0, y_test_class_0 = train_test_split(
-        X_class_0, y_class_0, test_size=n_class_1_test, random_state=42, stratify=y_class_0)
+# Combine the classes back into a single dataset
+X_train = np.vstack((X_train_class_0, X_train_class_1))
+y_train = np.concatenate((y_train_class_0, y_train_class_1))
 
-    # Combine the classes back into a single dataset
-    X_train = np.vstack((X_train_class_0, X_train_class_1))
-    y_train = np.concatenate((y_train_class_0, y_train_class_1))
-    X_test = np.vstack((X_test_class_0, X_test_class_0))
-    y_test = np.concatenate((y_test_class_0, y_test_class_1))
-
-    return X_train, X_test, y_train, y_test, scaler
-
-# Load and preprocess the data
-data = load_data()
-X_train, X_test, y_train, y_test, scaler = preprocess_data(data)
+X_test = np.vstack((X_test_class_0, X_test_class_1))
+y_test = np.concatenate((y_test_class_0, y_test_class_1))
 
 # Apply SMOTE to balance the training set
 smote = SMOTE(random_state=42)
@@ -65,10 +53,10 @@ X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
 # Function to build a neural network model
 def build_model():
     model = tf.keras.Sequential([
-        tf.keras.layers.Dense(64, activation='relu', input_shape=(X_train_resampled.shape[1],)),
-        tf.keras.layers.Dropout(0.3),
-        tf.keras.layers.Dense(32, activation='relu'),
-        tf.keras.layers.Dropout(0.2),
+        tf.keras.layers.Dense(128, activation='relu', input_shape=(X_train_resampled.shape[1],)),
+        tf.keras.layers.Dropout(0.5),
+        tf.keras.layers.Dense(64, activation='relu'),
+        tf.keras.layers.Dropout(0.5),
         tf.keras.layers.Dense(1, activation='sigmoid')  # Binary classification
     ])
     model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
@@ -80,7 +68,21 @@ model = build_model()
 # Class weights to handle imbalance
 class_weight = {0: 1, 1: 5}  # Give more weight to fraud cases
 
-history = model.fit(X_train_resampled, y_train_resampled, epochs=10, batch_size=32, class_weight=class_weight, validation_split=0.2)
+# Adversarial training: Generate adversarial examples and include them in the training set
+def generate_adversarial_examples(X, epsilon=0.1):
+    noise = np.random.normal(0, epsilon, X.shape)  # Generate Gaussian noise
+    X_adv = X + noise  # Add noise to create adversarial examples
+    X_adv = np.clip(X_adv, 0, None)  # Ensure no negative values
+    return X_adv
+
+X_adv = generate_adversarial_examples(X_train_resampled, epsilon=0.1)
+
+# Combine the original and adversarial examples
+X_combined = np.vstack((X_train_resampled, X_adv))
+y_combined = np.concatenate((y_train_resampled, y_train_resampled))  # Duplicate the labels
+
+# Train the model with the combined dataset
+history = model.fit(X_combined, y_combined, epochs=3, batch_size=32, class_weight=class_weight, validation_split=0.2)
 
 # Function to calculate model performance
 def get_model_performance(model, X, y, threshold=0.5):
@@ -92,19 +94,10 @@ def get_model_performance(model, X, y, threshold=0.5):
     f1 = f1_score(y, y_pred, zero_division=0)  # Handle zero division
     return acc, precision, recall, f1, y_pred
 
-# Function to create adversarial examples
-def generate_adversarial_examples(X, epsilon=0.1):
-    noise = np.random.normal(0, epsilon, X.shape)  # Generate Gaussian noise
-    X_adv = X + noise  # Add noise to create adversarial examples
-    X_adv = np.clip(X_adv, 0, None)  # Ensure no negative values
-    return X_adv
-
-# Generate adversarial examples
-X_adv = generate_adversarial_examples(X_test, epsilon=0.1)
-y_adv = y_test  # Assuming labels remain the same for this example
-
+# Generate adversarial examples for testing
+X_adv_test = generate_adversarial_examples(X_test, epsilon=0.1)
 # Normalize adversarial examples to match the training data
-X_adv = scaler.transform(X_adv)
+X_adv_test = scaler.transform(X_adv_test)
 
 # Create a SHAP explainer
 explainer = shap.KernelExplainer(model.predict, X_train_resampled[:100])  # Limit to 100 samples for faster SHAP calculations
@@ -129,7 +122,7 @@ if section == "Model Overview":
     st.write(f"F1-Score: {clean_f1:.4f}")
 
     # Performance metrics on adversarial test data
-    adv_acc, adv_precision, adv_recall, adv_f1, y_pred_adv = get_model_performance(model, X_adv, y_adv, threshold=0.5)
+    adv_acc, adv_precision, adv_recall, adv_f1, y_pred_adv = get_model_performance(model, X_adv_test, y_test, threshold=0.5)
     st.subheader("Performance on Adversarial Data")
     st.write(f"Accuracy: {adv_acc:.4f}")
     st.write(f"Precision: {adv_precision:.4f}")
@@ -145,7 +138,7 @@ if section == "Model Overview":
 
     # Display confusion matrix for adversarial data
     st.subheader("Confusion Matrix for Adversarial Data")
-    cm_adv = confusion_matrix(y_adv, y_pred_adv)
+    cm_adv = confusion_matrix(y_test, y_pred_adv)
     sns.heatmap(cm_adv, annot=True, fmt="d", cmap="Blues")
     plt.title("Confusion Matrix (Adversarial Data)")
     st.pyplot()
@@ -184,12 +177,18 @@ elif section == "Interactive Prediction Tool":
     st.header("Interactive Prediction Tool")
     
     # Input features for a new transaction
-    features = {}
-    for i in range(X_train.shape[1]):
-        features[f"Feature {i+1}"] = st.number_input(f"Feature {i+1}", value=0.0)
-
-    if st.button("Predict"):
-        input_data = np.array(list(features.values())).reshape(1, -1)
-        input_data = scaler.transform(input_data)  # Scale input data
-        prediction = model.predict(input_data)
-        st.write(f"Prediction: {'Fraud' if prediction[0][0] > 0.5 else 'Not Fraud'}")
+    st.subheader("Input Transaction Features")
+    transaction_input = []
+    for i in range(X_test.shape[1]):
+        feature_val = st.number_input(f"Feature {i+1}", value=float(X_test[0, i]))
+        transaction_input.append(feature_val)
+    
+    # Predict fraud/not fraud
+    transaction_input = np.array(transaction_input).reshape(1, -1)
+    transaction_input_scaled = scaler.transform(transaction_input)  # Scale the input
+    prediction_prob = model.predict(transaction_input_scaled)
+    prediction = "Fraud" if prediction_prob[0][0] > 0.5 else "Not Fraud"
+    
+    st.subheader("Prediction Result")
+    st.write(f"Prediction Probability: {prediction_prob[0][0]:.4f}")
+    st.write(f"Prediction: {prediction}")
