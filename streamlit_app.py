@@ -19,23 +19,32 @@ y = data.iloc[:, -1].values  # Target (fraud/not fraud)
 scaler = StandardScaler()
 X = scaler.fit_transform(X)
 
-# Separate the dataset into two parts based on class
+# Separate the classes
 X_class_0 = X[y == 0]
 y_class_0 = y[y == 0]
 X_class_1 = X[y == 1]
 y_class_1 = y[y == 1]
 
-# Split class 1 into train and test (half-half)
-X_train_class_1 = X_class_1[:len(X_class_1) // 2]
-y_train_class_1 = y_class_1[:len(y_class_1) // 2]
-X_test_class_1 = X_class_1[len(X_class_1) // 2:]
-y_test_class_1 = y_class_1[len(y_class_1) // 2:]
+# Split class 1 into train and test (2/3 for training, 1/3 for testing)
+n_class_1_train = int(len(X_class_1) * (2 / 3))
+n_class_1_test = len(X_class_1) - n_class_1_train
 
-# Combine class 0 with the training set and keep the rest for the test set
-X_train = np.vstack((X_class_0, X_train_class_1))
-y_train = np.hstack((y_class_0, y_train_class_1))
-X_test = np.vstack((X_test_class_1))
-y_test = np.hstack((y_test_class_1))
+# Split class 0 into train and test (stratify based on the remaining class proportions)
+X_train_class_1 = X_class_1[:n_class_1_train]
+y_train_class_1 = y_class_1[:n_class_1_train]
+X_test_class_1 = X_class_1[n_class_1_train:]
+y_test_class_1 = y_class_1[n_class_1_train:]
+
+# For class 0, take a proportionate split of the remaining data
+X_train_class_0, X_test_class_0, y_train_class_0, y_test_class_0 = train_test_split(
+    X_class_0, y_class_0, test_size=n_class_1_test, random_state=42, stratify=y_class_0)
+
+# Combine the classes back into a single dataset
+X_train = np.vstack((X_train_class_0, X_train_class_1))
+y_train = np.concatenate((y_train_class_0, y_train_class_1))
+
+X_test = np.vstack((X_test_class_0, X_test_class_1))
+y_test = np.concatenate((y_test_class_0, y_test_class_1))
 
 # Apply SMOTE to balance the training set
 smote = SMOTE(random_state=42)
