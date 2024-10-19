@@ -173,6 +173,7 @@ if section == "Model Overview":
 elif section == "Adversarial Attacks":
     st.header("Adversarial Attacks")
     st.write("This section is optional and can be expanded based on your needs.")
+    # You could include detailed information or examples of adversarial attacks here
 
 # Explainability Section
 elif section == "Explainability":
@@ -193,7 +194,6 @@ elif section == "Explainability":
     exp.as_pyplot_figure()
     st.pyplot()
 
-
 # Interactive Prediction Tool Section
 elif section == "Interactive Prediction Tool":
     st.header("Interactive Prediction Tool")
@@ -202,7 +202,7 @@ elif section == "Interactive Prediction Tool":
     st.subheader("Input Transaction Features")
     transaction_input = []
     for i in range(X_test.shape[1]):
-        feature_val = st.number_input(f"Feature {i+1}", value=float(X_test[0, i]))
+        feature_val = st.number_input(f"Feature {i+1}", value=float(X_test[0, i]), step=0.01)  # Step can be adjusted
         transaction_input.append(feature_val)
     
     # Predict fraud/not fraud
