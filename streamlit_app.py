@@ -7,10 +7,22 @@ import shap
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from sklearn.model_selection import train_test_split
 import tensorflow as tf
+import os
+
+# Debugging: Check current directory and model files
+st.write("Current Working Directory:", os.getcwd())
+if os.path.exists('models/'):
+    st.write("Files in models directory:", os.listdir('models/'))
+else:
+    st.write("Models directory does not exist.")
 
 # Load your trained models
-fraud_detection_model = tf.keras.models.load_model('models/fraud_detection_model.h5')
-robust_fraud_detection_model = tf.keras.models.load_model('models/robust_fraud_detection_model.h5')
+try:
+    fraud_detection_model = tf.keras.models.load_model('models/fraud_detection_model.h5')
+    robust_fraud_detection_model = tf.keras.models.load_model('models/robust_fraud_detection_model.h5')
+except FileNotFoundError as e:
+    st.error(f"Error loading model: {str(e)}")
+    st.stop()  # Stop the execution if models cannot be loaded
 
 # Load dataset
 data = pd.read_csv('creditcard.csv')  # Replace with your actual dataset path
@@ -88,7 +100,7 @@ elif section == "Adversarial Attacks":
     
     # Generate adversarial example
     st.subheader("Adversarial Example")
-    idx = st.slider("Select Transaction Index", 0, len(X_adv)-1)
+    idx = st.slider("Select Transaction Index", 0, len(X_adv) - 1)
     st.write(f"Original Transaction: {X_test[idx]}")
     st.write(f"Adversarial Transaction: {X_adv[idx]}")
     original_pred = (fraud_detection_model.predict([X_test[idx]]) > 0.5).astype(int)[0][0]
@@ -108,7 +120,7 @@ elif section == "Explainability":
     
     # Per-transaction explanation
     st.subheader("Per-Transaction Explanation")
-    idx = st.slider("Select Transaction Index", 0, len(X_test)-1)
+    idx = st.slider("Select Transaction Index", 0, len(X_test) - 1)
     st.write(f"Transaction: {X_test[idx]}")
     shap.force_plot(explainer.expected_value, shap_values[idx], X_test[idx], matplotlib=True)
     st.pyplot()
@@ -121,7 +133,7 @@ elif section == "Interactive Prediction Tool":
     st.subheader("Input Transaction Features")
     transaction_input = []
     for i in range(X_test.shape[1]):
-        feature_val = st.number_input(f"Feature {i+1}", value=float(X_test[0, i]))
+        feature_val = st.number_input(f"Feature {i + 1}", value=float(X_test[0, i]))
         transaction_input.append(feature_val)
     
     # Predict fraud/not fraud
@@ -134,4 +146,5 @@ elif section == "Interactive Prediction Tool":
     shap_values_input = explainer(transaction_input)
     shap.force_plot(explainer.expected_value, shap_values_input, transaction_input, matplotlib=True)
     st.pyplot()
+
 
