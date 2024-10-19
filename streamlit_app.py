@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import shap
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 from sklearn.model_selection import train_test_split
 import tensorflow as tf
 
@@ -31,15 +31,23 @@ X_adv = generate_adversarial_examples(X_test)
 y_adv = y_test  # Assuming labels remain the same for this example
 
 # Function to calculate model performance
-def get_model_performance(model, X, y):
-    y_pred = (model.predict(X) > 0.5).astype("int32")  # Assuming binary classification with sigmoid
+def get_model_performance(model, X, y, threshold=0.5):
+    y_pred = (model.predict(X) > threshold).astype("int32")  # Adjust threshold
     acc = accuracy_score(y, y_pred)
-    precision = precision_score(y, y_pred)
-    recall = recall_score(y, y_pred)
-    f1 = f1_score(y, y_pred)
+    precision = precision_score(y, y_pred, zero_division=0)
+    recall = recall_score(y, y_pred, zero_division=0)
+    f1 = f1_score(y, y_pred, zero_division=0)
     return acc, precision, recall, f1
 
-# Create a SHAP KernelExplainer with a smaller dataset
+# Function to plot confusion matrix
+def plot_confusion_matrix(y_true, y_pred):
+    cm = confusion_matrix(y_true, y_pred)
+    sns.heatmap(cm, annot=True, fmt="d", cmap="Blues")
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+    st.pyplot()
+
+# Create a SHAP explainer
 explainer = shap.KernelExplainer(model.predict, X_train[:100])  # Limit X_train for faster SHAP calculation
 
 # Main app
@@ -52,17 +60,21 @@ section = st.sidebar.radio("Go to", ["Model Overview", "Adversarial Attacks", "E
 # Model Overview Section
 if section == "Model Overview":
     st.header("Model Overview")
-    
+
+    # Adjust threshold using a slider
+    st.subheader("Adjust Prediction Threshold")
+    threshold = st.slider("Select Threshold", 0.0, 1.0, 0.5, 0.01)
+
     # Display performance metrics on clean data
-    clean_acc, clean_precision, clean_recall, clean_f1 = get_model_performance(model, X_test, y_test)
+    clean_acc, clean_precision, clean_recall, clean_f1 = get_model_performance(model, X_test, y_test, threshold)
     st.subheader("Performance on Clean Data")
     st.write(f"Accuracy: {clean_acc:.4f}")
     st.write(f"Precision: {clean_precision:.4f}")
     st.write(f"Recall: {clean_recall:.4f}")
     st.write(f"F1-Score: {clean_f1:.4f}")
-    
+
     # Display performance metrics on adversarial data
-    adv_acc, adv_precision, adv_recall, adv_f1 = get_model_performance(model, X_adv, y_adv)
+    adv_acc, adv_precision, adv_recall, adv_f1 = get_model_performance(model, X_adv, y_adv, threshold)
     st.subheader("Performance on Adversarial Data")
     st.write(f"Accuracy: {adv_acc:.4f}")
     st.write(f"Precision: {adv_precision:.4f}")
@@ -70,68 +82,69 @@ if section == "Model Overview":
     st.write(f"F1-Score: {adv_f1:.4f}")
 
     # Visualize fraud vs non-fraud transaction distribution
-    st.subheader("Transaction Distribution")
-    fraud_count = pd.Series(y_test).value_counts()
-    sns.barplot(x=fraud_count.index, y=fraud_count.values)
-    plt.title('Distribution of Fraud vs Non-Fraud Transactions')
-    st.pyplot()
+    st.subheader("Class Distribution in Test Set")
+    class_distribution = pd.Series(y_test).value_counts()
+    st.write(class_distribution)
+
+    # Confusion Matrix for clean data
+    st.subheader("Confusion Matrix on Clean Data")
+    y_pred_clean = (model.predict(X_test) > threshold).astype("int32")
+    plot_confusion_matrix(y_test, y_pred_clean)
 
 # Adversarial Attacks Section
 elif section == "Adversarial Attacks":
     st.header("Adversarial Attacks")
-    
+
     # Before vs. After Attack Comparison
     st.subheader("Before vs. After Attack")
     st.write("Model accuracy before attack: ", clean_acc)
     st.write("Model accuracy after attack: ", adv_acc)
-    
+
     # Generate adversarial example
     st.subheader("Adversarial Example")
     idx = st.slider("Select Transaction Index", 0, len(X_adv)-1)
     st.write(f"Original Transaction: {X_test[idx]}")
     st.write(f"Adversarial Transaction: {X_adv[idx]}")
-    original_pred = (model.predict(np.array([X_test[idx]])) > 0.5).astype(int)[0][0]
-    adv_pred = (model.predict(np.array([X_adv[idx]])) > 0.5).astype(int)[0][0]
+    original_pred = (model.predict(np.array([X_test[idx]])) > threshold).astype(int)[0][0]
+    adv_pred = (model.predict(np.array([X_adv[idx]])) > threshold).astype(int)[0][0]
     st.write(f"Original Prediction: {'Fraud' if original_pred == 1 else 'Not Fraud'}")
     st.write(f"Adversarial Prediction: {'Fraud' if adv_pred == 1 else 'Not Fraud'}")
 
 # Explainability Section
 elif section == "Explainability":
     st.header("Explainability with SHAP")
-    
+
     # Feature importance plot
     st.subheader("Feature Importance Plot (SHAP)")
     shap_values = explainer.shap_values(X_test[:100])  # Limit X_test for faster visualization
     shap.summary_plot(shap_values, X_test[:100], show=False)
     st.pyplot()
-    
+
     # Per-transaction explanation
     st.subheader("Per-Transaction Explanation")
     idx = st.slider("Select Transaction Index", 0, len(X_test)-1)
     st.write(f"Transaction: {X_test[idx]}")
-    
-    shap_value_for_idx = explainer.shap_values(np.array([X_test[idx]]))
-    shap.force_plot(explainer.expected_value[0], shap_value_for_idx[0], X_test[idx], matplotlib=True)
+    shap.force_plot(explainer.expected_value, shap_values[idx], X_test[idx], matplotlib=True)
     st.pyplot()
 
 # Interactive Prediction Tool Section
 elif section == "Interactive Prediction Tool":
     st.header("Interactive Prediction Tool")
-    
+
     # Input features for new transaction
     st.subheader("Input Transaction Features")
     transaction_input = []
     for i in range(X_test.shape[1]):
         feature_val = st.number_input(f"Feature {i+1}", value=float(X_test[0, i]))
         transaction_input.append(feature_val)
-    
+
     # Predict fraud/not fraud
     transaction_input = np.array(transaction_input).reshape(1, -1)
-    pred = (model.predict(transaction_input) > 0.5).astype(int)[0][0]
+    pred = (model.predict(transaction_input) > threshold).astype(int)[0][0]
     st.write(f"Prediction: {'Fraud' if pred == 1 else 'Not Fraud'}")
-    
+
     # Show SHAP explanations for the prediction
     st.subheader("Explanation for the Prediction")
     shap_values_input = explainer.shap_values(transaction_input)
-    shap.force_plot(explainer.expected_value[0], shap_values_input[0], transaction_input[0], matplotlib=True)
+    shap.force_plot(explainer.expected_value, shap_values_input[0], transaction_input, matplotlib=True)
     st.pyplot()
