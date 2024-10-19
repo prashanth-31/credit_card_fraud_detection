@@ -4,8 +4,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import shap
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, roc_curve
 from sklearn.model_selection import train_test_split
+from imblearn.over_sampling import SMOTE
 import tensorflow as tf
 
 # Load your trained model
@@ -19,6 +20,10 @@ y = data.iloc[:, -1].values  # Adjust to your actual target column
 # Split dataset into train and test sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 
+# Apply SMOTE to balance the training dataset
+smote = SMOTE(random_state=42)
+X_train_smote, y_train_smote = smote.fit_resample(X_train, y_train)
+
 # Function to create adversarial examples
 def generate_adversarial_examples(X, epsilon=0.1):
     noise = np.random.normal(0, epsilon, X.shape)  # Generate Gaussian noise
@@ -31,13 +36,13 @@ X_adv = generate_adversarial_examples(X_test)
 y_adv = y_test  # Assuming labels remain the same for this example
 
 # Function to calculate model performance
-def get_model_performance(model, X, y, threshold=0.5):
+def get_model_performance(model, X, y, threshold=0.2):  # Adjust threshold lower than 0.5
     y_pred = (model.predict(X) > threshold).astype("int32")  # Adjust threshold
     acc = accuracy_score(y, y_pred)
     precision = precision_score(y, y_pred, zero_division=0)
     recall = recall_score(y, y_pred, zero_division=0)
     f1 = f1_score(y, y_pred, zero_division=0)
-    return acc, precision, recall, f1
+    return acc, precision, recall, f1, y_pred
 
 # Function to plot confusion matrix
 def plot_confusion_matrix(y_true, y_pred):
@@ -47,8 +52,18 @@ def plot_confusion_matrix(y_true, y_pred):
     plt.xlabel('Predicted label')
     st.pyplot()
 
+# Function to plot ROC curve
+def plot_roc_curve(y_true, y_prob):
+    fpr, tpr, thresholds = roc_curve(y_true, y_prob)
+    plt.plot(fpr, tpr, label="ROC Curve")
+    plt.plot([0, 1], [0, 1], 'k--')  # Diagonal line for random guessing
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('ROC Curve')
+    st.pyplot()
+
 # Create a SHAP explainer
-explainer = shap.KernelExplainer(model.predict, X_train[:100])  # Limit X_train for faster SHAP calculation
+explainer = shap.KernelExplainer(model.predict, X_train_smote[:100])  # Limit X_train for faster SHAP calculation
 
 # Main app
 st.title("Fraud Detection Model Dashboard")
@@ -63,10 +78,10 @@ if section == "Model Overview":
 
     # Adjust threshold using a slider
     st.subheader("Adjust Prediction Threshold")
-    threshold = st.slider("Select Threshold", 0.0, 1.0, 0.5, 0.01)
+    threshold = st.slider("Select Threshold", 0.0, 1.0, 0.2, 0.01)  # Default lower threshold at 0.2
 
     # Display performance metrics on clean data
-    clean_acc, clean_precision, clean_recall, clean_f1 = get_model_performance(model, X_test, y_test, threshold)
+    clean_acc, clean_precision, clean_recall, clean_f1, y_pred_clean = get_model_performance(model, X_test, y_test, threshold)
     st.subheader("Performance on Clean Data")
     st.write(f"Accuracy: {clean_acc:.4f}")
     st.write(f"Precision: {clean_precision:.4f}")
@@ -74,7 +89,7 @@ if section == "Model Overview":
     st.write(f"F1-Score: {clean_f1:.4f}")
 
     # Display performance metrics on adversarial data
-    adv_acc, adv_precision, adv_recall, adv_f1 = get_model_performance(model, X_adv, y_adv, threshold)
+    adv_acc, adv_precision, adv_recall, adv_f1, y_pred_adv = get_model_performance(model, X_adv, y_adv, threshold)
     st.subheader("Performance on Adversarial Data")
     st.write(f"Accuracy: {adv_acc:.4f}")
     st.write(f"Precision: {adv_precision:.4f}")
@@ -88,8 +103,11 @@ if section == "Model Overview":
 
     # Confusion Matrix for clean data
     st.subheader("Confusion Matrix on Clean Data")
-    y_pred_clean = (model.predict(X_test) > threshold).astype("int32")
     plot_confusion_matrix(y_test, y_pred_clean)
+
+    # ROC Curve
+    st.subheader("ROC Curve on Clean Data")
+    plot_roc_curve(y_test, model.predict(X_test))
 
 # Adversarial Attacks Section
 elif section == "Adversarial Attacks":
