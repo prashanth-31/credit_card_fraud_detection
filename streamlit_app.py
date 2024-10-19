@@ -80,9 +80,6 @@ def get_model_performance(model, X, y, threshold=0.5):
     f1 = f1_score(y, y_pred)
     return acc, precision, recall, f1, y_pred
 
-# Create a SHAP explainer
-explainer = shap.KernelExplainer(model.predict, X_train[:100])  # Limit to 100 samples for faster SHAP calculations
-
 # Main Streamlit app
 st.title("Fraud Detection Model Dashboard")
 
@@ -158,4 +155,3 @@ elif section == "Interactive Prediction Tool":
     shap_values_input = explainer.shap_values(transaction_input)
     shap.force_plot(explainer.expected_value, shap_values_input[0], transaction_input, matplotlib=True)
     st.pyplot()
-
