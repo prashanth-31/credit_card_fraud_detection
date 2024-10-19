@@ -70,7 +70,7 @@ model = build_model()
 class_weight = {0: 1, 1: 5}  # Give more weight to fraud cases
 
 # Train the model
-history = model.fit(X_train_resampled, y_train_resampled, epochs=2, batch_size=32, class_weight=class_weight, validation_split=0.2)
+history = model.fit(X_train_resampled, y_train_resampled, epochs=10, batch_size=32, class_weight=class_weight, validation_split=0.2)
 
 # Function to calculate model performance
 def get_model_performance(model, X, y, threshold=0.5):
@@ -91,6 +91,29 @@ baseline_model.fit(X_train_resampled, y_train_resampled)
 
 # Get permutation importance
 results = permutation_importance(baseline_model, X_test, y_test, n_repeats=30, random_state=42, scoring='accuracy')
+
+# Cumulative Gains Function
+def plot_cumulative_gains(y_true, y_scores):
+    # Sort the scores in descending order
+    sorted_indices = np.argsort(y_scores)[::-1]
+    y_true_sorted = y_true[sorted_indices]
+
+    # Calculate cumulative gains
+    cumulative_gains = np.cumsum(y_true_sorted)
+    total_positives = np.sum(y_true)
+    
+    # Calculate lift
+    lift = cumulative_gains / total_positives
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(range(len(y_true_sorted)), cumulative_gains, label='Cumulative Gains', marker='o')
+    plt.axhline(y=total_positives, color='r', linestyle='--', label='Random Model')
+    plt.xlabel('Number of Samples')
+    plt.ylabel('Cumulative Gains')
+    plt.title('Cumulative Gains Chart')
+    plt.legend()
+    plt.grid()
+    plt.show()
 
 # Main Streamlit app
 st.title("Fraud Detection Model Dashboard")
@@ -136,6 +159,12 @@ elif section == "Permutation Importance":
     plt.xlabel("Permutation Importance")
     plt.title("Feature Importances (Permutation Importance)")
     st.pyplot()
+
+    # Cumulative Gains Chart
+    st.subheader("Cumulative Gains Chart")
+    y_pred_prob = baseline_model.predict_proba(X_test)[:, 1]  # Get probabilities for the positive class
+    plot_cumulative_gains(y_test, y_pred_prob)
+    st.pyplot()  # Show the cumulative gains chart
 
 # Interactive Prediction Tool Section
 elif section == "Interactive Prediction Tool":
