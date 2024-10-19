@@ -7,6 +7,7 @@ import shap
 from imblearn.over_sampling import SMOTE
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 from sklearn.model_selection import train_test_split
+from sklearn.utils import shuffle  # Import shuffle
 import tensorflow as tf
 from sklearn.preprocessing import StandardScaler
 
