@@ -80,6 +80,17 @@ def get_model_performance(model, X, y, threshold=0.5):
     f1 = f1_score(y, y_pred)
     return acc, precision, recall, f1, y_pred
 
+# Function to create adversarial examples
+def generate_adversarial_examples(X, epsilon=0.1):
+    noise = np.random.normal(0, epsilon, X.shape)  # Generate Gaussian noise
+    X_adv = X + noise  # Add noise to create adversarial examples
+    X_adv = np.clip(X_adv, 0, None)  # Ensure no negative values
+    return X_adv
+
+# Generate adversarial examples
+X_adv = generate_adversarial_examples(X_test)
+y_adv = y_test  # Assuming labels remain the same for this example
+
 # Create a SHAP explainer
 explainer = shap.KernelExplainer(model.predict, X_train[:100])  # Limit to 100 samples for faster SHAP calculations
 
@@ -95,17 +106,33 @@ if section == "Model Overview":
     st.header("Model Overview")
     
     # Performance metrics on clean test data
-    clean_acc, clean_precision, clean_recall, clean_f1, y_pred = get_model_performance(model, X_test, y_test, threshold=0.3)  # Adjusted threshold
+    clean_acc, clean_precision, clean_recall, clean_f1, y_pred = get_model_performance(model, X_test, y_test, threshold=0.5)
     st.subheader("Performance on Clean Data")
     st.write(f"Accuracy: {clean_acc:.4f}")
     st.write(f"Precision: {clean_precision:.4f}")
     st.write(f"Recall: {clean_recall:.4f}")
     st.write(f"F1-Score: {clean_f1:.4f}")
-    
-    # Display confusion matrix
-    st.subheader("Confusion Matrix")
+
+    # Performance metrics on adversarial test data
+    adv_acc, adv_precision, adv_recall, adv_f1, y_pred_adv = get_model_performance(model, X_adv, y_adv, threshold=0.5)
+    st.subheader("Performance on Adversarial Data")
+    st.write(f"Accuracy: {adv_acc:.4f}")
+    st.write(f"Precision: {adv_precision:.4f}")
+    st.write(f"Recall: {adv_recall:.4f}")
+    st.write(f"F1-Score: {adv_f1:.4f}")
+
+    # Display confusion matrix for clean data
+    st.subheader("Confusion Matrix for Clean Data")
     cm = confusion_matrix(y_test, y_pred)
     sns.heatmap(cm, annot=True, fmt="d", cmap="Blues")
+    plt.title("Confusion Matrix (Clean Data)")
+    st.pyplot()
+
+    # Display confusion matrix for adversarial data
+    st.subheader("Confusion Matrix for Adversarial Data")
+    cm_adv = confusion_matrix(y_adv, y_pred_adv)
+    sns.heatmap(cm_adv, annot=True, fmt="d", cmap="Blues")
+    plt.title("Confusion Matrix (Adversarial Data)")
     st.pyplot()
 
     # Visualize fraud vs non-fraud transaction distribution
@@ -150,7 +177,7 @@ elif section == "Interactive Prediction Tool":
     
     # Predict fraud/not fraud
     transaction_input = np.array(transaction_input).reshape(1, -1)
-    pred = (model.predict(transaction_input) > 0.3).astype(int)[0][0]  # Adjusted threshold for prediction
+    pred = (model.predict(transaction_input) > 0.5).astype(int)[0][0]  # Adjusted threshold for prediction
     st.write(f"Prediction: {'Fraud' if pred == 1 else 'Not Fraud'}")
     
     # Show SHAP explanations for the prediction
