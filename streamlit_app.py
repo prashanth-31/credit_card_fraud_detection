@@ -145,10 +145,24 @@ if section == "Model Overview":
     plt.title('Distribution of Fraud vs Non-Fraud Transactions')
     st.pyplot()
 
-# Adversarial Attacks Section (optional)
+# Adversarial Attacks Section
 elif section == "Adversarial Attacks":
     st.header("Adversarial Attacks")
-    st.write("This section is optional and can be expanded based on your needs.")
+    
+    # Before vs. After Attack Comparison
+    st.subheader("Before vs. After Attack Comparison")
+    st.write("Model accuracy before attack: ", clean_acc)
+    st.write("Model accuracy after attack: ", adv_acc)
+
+    # Generate adversarial example
+    st.subheader("Adversarial Example")
+    idx = st.slider("Select Transaction Index", 0, len(X_adv)-1)
+    st.write(f"Original Transaction: {X_test[idx]}")
+    st.write(f"Adversarial Transaction: {X_adv[idx]}")
+    original_pred = (model.predict(np.array([X_test[idx]])) > 0.5).astype(int)[0][0]
+    adv_pred = (model.predict(np.array([X_adv[idx]])) > 0.5).astype(int)[0][0]
+    st.write(f"Original Prediction: {'Fraud' if original_pred == 1 else 'Not Fraud'}")
+    st.write(f"Adversarial Prediction: {'Fraud' if adv_pred == 1 else 'Not Fraud'}")
 
 # Explainability Section
 elif section == "Explainability":
@@ -170,9 +184,30 @@ elif section == "Explainability":
 # Interactive Prediction Tool Section
 elif section == "Interactive Prediction Tool":
     st.header("Interactive Prediction Tool")
-    
-    # Input features for a new transaction
-    st.subheader("Input Transaction Features")
     transaction_input = []
-    for i in range(X_test.shape[1]):
-        feature_val = st.number_input(f"Feature {i+1}", value=float(X_test[0
+    for i in range(X.shape[1]):
+        feature_val = st.number_input(f"Feature {i+1}", value=float(X_test[0][i]), key=f"feature_{i}")
+        transaction_input.append(feature_val)
+    
+    # Convert the input list to a numpy array and reshape it for prediction
+    transaction_input = np.array(transaction_input).reshape(1, -1)
+    
+    # Standardize the input transaction to match the training data's scaling
+    transaction_input = scaler.transform(transaction_input)
+    
+    # Predicting the result using the trained model
+    prediction_prob = model.predict(transaction_input)
+    prediction = (prediction_prob > 0.5).astype("int32")  # Adjust threshold if necessary
+    
+    # Display the prediction result
+    st.subheader("Prediction Result")
+    if prediction[0][0] == 1:
+        st.write("⚠️ This transaction is predicted to be fraudulent.")
+    else:
+        st.write("✅ This transaction is predicted to be legitimate.")
+    
+    # Show the prediction probability
+    st.write(f"Prediction Probability: {prediction_prob[0][0]:.4f}")
+
+# To run the app, use this command in the terminal:
+# streamlit run app.py
