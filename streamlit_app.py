@@ -184,4 +184,4 @@ elif section == "Interactive Prediction Tool":
     transaction_input = np.array(transaction_input).reshape(1, -1)
     transaction_input_scaled = scaler.transform(transaction_input)  # Scale the input
     prediction_prob = model.predict(transaction_input_scaled)
-    prediction = "Fraud" if prediction_prob[0][0
+    prediction = "Fraud" if prediction_prob[0][0]
