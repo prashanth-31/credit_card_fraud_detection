@@ -9,6 +9,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.inspection import permutation_importance
 import tensorflow as tf
 from sklearn.preprocessing import StandardScaler
+from sklearn.base import BaseEstimator, ClassifierMixin
 
 # Load dataset
 data = pd.read_csv('creditcard.csv')  # Adjust with your dataset path
@@ -50,44 +51,39 @@ y_test = np.concatenate((y_test_class_0, y_test_class_1))
 smote = SMOTE(random_state=42)
 X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
 
-# Function to build a neural network model
-def build_model():
-    model = tf.keras.Sequential([
-        tf.keras.layers.Dense(128, activation='relu', input_shape=(X_train_resampled.shape[1],)),
-        tf.keras.layers.Dropout(0.5),
-        tf.keras.layers.Dense(64, activation='relu'),
-        tf.keras.layers.Dropout(0.5),
-        tf.keras.layers.Dense(1, activation='sigmoid')  # Binary classification
-    ])
-    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-    return model
+# Wrapper class for TensorFlow model
+class KerasClassifier(BaseEstimator, ClassifierMixin):
+    def __init__(self):
+        self.model = self.build_model()
+
+    def build_model(self):
+        model = tf.keras.Sequential([
+            tf.keras.layers.Dense(128, activation='relu', input_shape=(X_train_resampled.shape[1],)),
+            tf.keras.layers.Dropout(0.5),
+            tf.keras.layers.Dense(64, activation='relu'),
+            tf.keras.layers.Dropout(0.5),
+            tf.keras.layers.Dense(1, activation='sigmoid')  # Binary classification
+        ])
+        model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+        return model
+
+    def fit(self, X, y, epochs=1, batch_size=32, class_weight=None):
+        self.model.fit(X, y, epochs=epochs, batch_size=batch_size, class_weight=class_weight)
+
+    def predict(self, X):
+        return (self.model.predict(X) > 0.5).astype("int32")
+
+    def predict_proba(self, X):
+        return self.model.predict(X)
 
 # Build and train the model
-model = build_model()
-
-# Class weights to handle imbalance
+model = KerasClassifier()
 class_weight = {0: 1, 1: 5}  # Give more weight to fraud cases
-
-# Adversarial training: Generate adversarial examples and include them in the training set
-def generate_adversarial_examples(X, epsilon=0.1):
-    noise = np.random.normal(0, epsilon, X.shape)  # Generate Gaussian noise
-    X_adv = X + noise  # Add noise to create adversarial examples
-    X_adv = np.clip(X_adv, 0, None)  # Ensure no negative values
-    return X_adv
-
-X_adv = generate_adversarial_examples(X_train_resampled, epsilon=0.1)
-
-# Combine the original and adversarial examples
-X_combined = np.vstack((X_train_resampled, X_adv))
-y_combined = np.concatenate((y_train_resampled, y_train_resampled))  # Duplicate the labels
-
-# Train the model with the combined dataset
-history = model.fit(X_combined, y_combined, epochs=1, batch_size=32, class_weight=class_weight, validation_split=0.2)
+model.fit(X_train_resampled, y_train_resampled, epochs=1, class_weight=class_weight)
 
 # Function to calculate model performance
 def get_model_performance(model, X, y, threshold=0.5):
-    y_pred_prob = model.predict(X)
-    y_pred = (y_pred_prob > threshold).astype("int32")  # Use threshold tuning
+    y_pred = model.predict(X)
     acc = accuracy_score(y, y_pred)
     precision = precision_score(y, y_pred, zero_division=0)  # Handle zero division
     recall = recall_score(y, y_pred, zero_division=0)  # Handle zero division
@@ -96,8 +92,7 @@ def get_model_performance(model, X, y, threshold=0.5):
 
 # Generate adversarial examples for testing
 X_adv_test = generate_adversarial_examples(X_test, epsilon=0.1)
-# Normalize adversarial examples to match the training data
-X_adv_test = scaler.transform(X_adv_test)
+X_adv_test = scaler.transform(X_adv_test)  # Scale adversarial examples
 
 # Main Streamlit app
 st.title("Fraud Detection Model Dashboard")
@@ -147,17 +142,12 @@ if section == "Model Overview":
     plt.title('Distribution of Fraud vs Non-Fraud Transactions')
     st.pyplot()
 
-# Adversarial Attacks Section (optional)
-elif section == "Adversarial Attacks":
-    st.header("Adversarial Attacks")
-    st.write("This section is optional and can be expanded based on your needs.")
-
 # Explainability Section using Permutation Importance
 elif section == "Explainability":
     st.header("Explainability with Permutation Importance")
 
     # Calculate Permutation Importance
-    results = permutation_importance(model, X_test, y_test, n_repeats=30, random_state=42)
+    results = permutation_importance(model, X_test, y_test, n_repeats=30, random_state=42, n_jobs=-1)
 
     # Feature importance visualization
     st.subheader("Feature Importance Plot")
