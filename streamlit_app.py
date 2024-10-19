@@ -13,7 +13,7 @@ import tensorflow as tf
 model = tf.keras.models.load_model('fraud_detection_model.h5')
 
 # Load dataset
-data = pd.read_csv('creditcards.csv')  # Replace with your actual dataset path
+data = pd.read_csv('creditcard.csv')  # Replace with your actual dataset path
 X = data.iloc[:,:-1].values  # Adjust to your actual features
 y = data.iloc[:,-1].values  # Adjust to your actual target column
 
