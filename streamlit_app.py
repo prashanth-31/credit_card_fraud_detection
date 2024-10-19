@@ -176,20 +176,23 @@ elif section == "Adversarial Attacks":
 
 # Explainability Section
 elif section == "Explainability":
-    st.header("Explainability with SHAP")
+    st.header("Explainability with LIME")
     
-    # Feature importance plot
-    st.subheader("Feature Importance Plot (SHAP)")
-    shap_values = explainer.shap_values(X_test[:100])  # Limit X_test for faster visualization
-    shap.summary_plot(shap_values, X_test[:100], show=False)
-    st.pyplot()
+    # Feature importance plot with LIME
+    st.subheader("Feature Importance Plot (LIME)")
     
-    # Per-transaction explanation
-    st.subheader("Per-Transaction Explanation")
-    idx = st.slider("Select Transaction Index", 0, len(X_test)-1)
+    # Select a transaction index
+    idx = st.slider("Select Transaction Index", 0, len(X_test) - 1)
     st.write(f"Transaction: {X_test[idx]}")
-    shap.force_plot(explainer.expected_value, shap_values[idx], X_test[idx], matplotlib=True)
+    
+    # Explain the selected transaction using LIME
+    exp = explain_with_lime(model, X_test[idx])
+    
+    # Display LIME explanation
+    st.write("LIME Explanation for the Selected Transaction:")
+    exp.as_pyplot_figure()
     st.pyplot()
+
 
 # Interactive Prediction Tool Section
 elif section == "Interactive Prediction Tool":
