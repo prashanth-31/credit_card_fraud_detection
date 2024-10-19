@@ -1,4 +1,3 @@
-#SuhaasR-3009
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -14,11 +13,11 @@ model = tf.keras.models.load_model('fraud_detection_model.h5')
 
 # Load dataset
 data = pd.read_csv('creditcard.csv')  # Replace with your actual dataset path
-X = data.iloc[:,:-1].values  # Adjust to your actual features
-y = data.iloc[:,-1].values  # Adjust to your actual target column
+X = data.iloc[:, :-1].values  # Adjust to your actual features
+y = data.iloc[:, -1].values  # Adjust to your actual target column
 
 # Split dataset into train and test sets
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42,stratify=y)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 
 # Function to create adversarial examples
 def generate_adversarial_examples(X, epsilon=0.1):
@@ -41,7 +40,7 @@ def get_model_performance(model, X, y):
     return acc, precision, recall, f1
 
 # Create a SHAP explainer
-explainer = shap.Explainer(model, X_train)
+explainer = shap.KernelExplainer(model.predict, X_train[:100])  # Limit X_train for faster SHAP calculation
 
 # Main app
 st.title("Fraud Detection Model Dashboard")
@@ -91,8 +90,8 @@ elif section == "Adversarial Attacks":
     idx = st.slider("Select Transaction Index", 0, len(X_adv)-1)
     st.write(f"Original Transaction: {X_test[idx]}")
     st.write(f"Adversarial Transaction: {X_adv[idx]}")
-    original_pred = (model.predict([X_test[idx]]) > 0.5).astype(int)[0][0]
-    adv_pred = (model.predict([X_adv[idx]]) > 0.5).astype(int)[0][0]
+    original_pred = (model.predict(np.array([X_test[idx]])) > 0.5).astype(int)[0][0]
+    adv_pred = (model.predict(np.array([X_adv[idx]])) > 0.5).astype(int)[0][0]
     st.write(f"Original Prediction: {'Fraud' if original_pred == 1 else 'Not Fraud'}")
     st.write(f"Adversarial Prediction: {'Fraud' if adv_pred == 1 else 'Not Fraud'}")
 
@@ -102,8 +101,8 @@ elif section == "Explainability":
     
     # Feature importance plot
     st.subheader("Feature Importance Plot (SHAP)")
-    shap_values = explainer(X_test)
-    shap.summary_plot(shap_values, X_test, show=False)
+    shap_values = explainer.shap_values(X_test[:100])  # Limit X_test for faster visualization
+    shap.summary_plot(shap_values, X_test[:100], show=False)
     st.pyplot()
     
     # Per-transaction explanation
@@ -131,6 +130,6 @@ elif section == "Interactive Prediction Tool":
     
     # Show SHAP explanations for the prediction
     st.subheader("Explanation for the Prediction")
-    shap_values_input = explainer(transaction_input)
-    shap.force_plot(explainer.expected_value, shap_values_input, transaction_input, matplotlib=True)
+    shap_values_input = explainer.shap_values(transaction_input)
+    shap.force_plot(explainer.expected_value, shap_values_input[0], transaction_input, matplotlib=True)
     st.pyplot()
