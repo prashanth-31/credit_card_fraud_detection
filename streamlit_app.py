@@ -10,6 +10,7 @@ from imblearn.over_sampling import SMOTE
 import tensorflow as tf
 
 # Load dataset
+# Load dataset
 data = pd.read_csv('creditcard.csv')  # Adjust with your dataset path
 X = data.iloc[:, :-1].values  # Features
 y = data.iloc[:, -1].values  # Target (fraud/not fraud)
@@ -17,6 +18,7 @@ y = data.iloc[:, -1].values  # Target (fraud/not fraud)
 # Normalize the data
 scaler = StandardScaler()
 X = scaler.fit_transform(X)
+
 # Separate the classes
 X_class_0 = X[y == 0]
 y_class_0 = y[y == 0]
@@ -110,7 +112,7 @@ section = st.sidebar.radio("Go to", ["Model Overview", "Adversarial Attacks", "E
 # Model Overview Section
 if section == "Model Overview":
     st.header("Model Overview")
-
+    
     # Performance metrics on clean test data
     clean_acc, clean_precision, clean_recall, clean_f1, y_pred = get_model_performance(model, X_test, y_test, threshold=0.5)
     st.subheader("Performance on Clean Data")
@@ -147,7 +149,6 @@ if section == "Model Overview":
     sns.barplot(x=fraud_count.index, y=fraud_count.values)
     plt.title('Distribution of Fraud vs Non-Fraud Transactions')
     st.pyplot()
-
 
 # Adversarial Attacks Section
 elif section == "Adversarial Attacks":
