@@ -3,7 +3,7 @@ pandas
 numpy
 matplotlib
 seaborn
-shap
+lime
 scikit-learn
 imblearn
 tensorflow
