@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -9,13 +8,14 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 from sklearn.model_selection import train_test_split
 import tensorflow as tf
 
-# Load your trained model
-model = tf.keras.models.load_model('fraud_detection_model.h5')
+# Load your trained models
+fraud_detection_model = tf.keras.models.load_model('models/fraud_detection_model.h5')
+robust_fraud_detection_model = tf.keras.models.load_model('models/robust_fraud_detection_model.h5')
 
 # Load dataset
 data = pd.read_csv('creditcard.csv')  # Replace with your actual dataset path
-X = data.iloc[:,:-1].values  # Adjust to your actual features
-y = data.iloc[:,-1].values  # Adjust to your actual target column
+X = data.iloc[:, :-1].values  # Adjust to your actual features
+y = data.iloc[:, -1].values  # Adjust to your actual target column
 
 # Split dataset into train and test sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -41,7 +41,7 @@ def get_model_performance(model, X, y):
     return acc, precision, recall, f1
 
 # Create a SHAP explainer
-explainer = shap.Explainer(model, X_train)
+explainer = shap.Explainer(fraud_detection_model, X_train)
 
 # Main app
 st.title("Fraud Detection Model Dashboard")
@@ -55,7 +55,7 @@ if section == "Model Overview":
     st.header("Model Overview")
     
     # Display performance metrics on clean data
-    clean_acc, clean_precision, clean_recall, clean_f1 = get_model_performance(model, X_test, y_test)
+    clean_acc, clean_precision, clean_recall, clean_f1 = get_model_performance(fraud_detection_model, X_test, y_test)
     st.subheader("Performance on Clean Data")
     st.write(f"Accuracy: {clean_acc:.4f}")
     st.write(f"Precision: {clean_precision:.4f}")
@@ -63,7 +63,7 @@ if section == "Model Overview":
     st.write(f"F1-Score: {clean_f1:.4f}")
     
     # Display performance metrics on adversarial data
-    adv_acc, adv_precision, adv_recall, adv_f1 = get_model_performance(model, X_adv, y_adv)
+    adv_acc, adv_precision, adv_recall, adv_f1 = get_model_performance(fraud_detection_model, X_adv, y_adv)
     st.subheader("Performance on Adversarial Data")
     st.write(f"Accuracy: {adv_acc:.4f}")
     st.write(f"Precision: {adv_precision:.4f}")
@@ -91,8 +91,8 @@ elif section == "Adversarial Attacks":
     idx = st.slider("Select Transaction Index", 0, len(X_adv)-1)
     st.write(f"Original Transaction: {X_test[idx]}")
     st.write(f"Adversarial Transaction: {X_adv[idx]}")
-    original_pred = (model.predict([X_test[idx]]) > 0.5).astype(int)[0][0]
-    adv_pred = (model.predict([X_adv[idx]]) > 0.5).astype(int)[0][0]
+    original_pred = (fraud_detection_model.predict([X_test[idx]]) > 0.5).astype(int)[0][0]
+    adv_pred = (fraud_detection_model.predict([X_adv[idx]]) > 0.5).astype(int)[0][0]
     st.write(f"Original Prediction: {'Fraud' if original_pred == 1 else 'Not Fraud'}")
     st.write(f"Adversarial Prediction: {'Fraud' if adv_pred == 1 else 'Not Fraud'}")
 
@@ -126,7 +126,7 @@ elif section == "Interactive Prediction Tool":
     
     # Predict fraud/not fraud
     transaction_input = np.array(transaction_input).reshape(1, -1)
-    pred = (model.predict(transaction_input) > 0.5).astype(int)[0][0]
+    pred = (fraud_detection_model.predict(transaction_input) > 0.5).astype(int)[0][0]
     st.write(f"Prediction: {'Fraud' if pred == 1 else 'Not Fraud'}")
     
     # Show SHAP explanations for the prediction
@@ -134,3 +134,4 @@ elif section == "Interactive Prediction Tool":
     shap_values_input = explainer(transaction_input)
     shap.force_plot(explainer.expected_value, shap_values_input, transaction_input, matplotlib=True)
     st.pyplot()
+
