@@ -76,10 +76,27 @@ class KerasClassifier(BaseEstimator, ClassifierMixin):
     def predict_proba(self, X):
         return self.model.predict(X)
 
+# Function to generate adversarial examples using FGSM
+def generate_adversarial_examples(X, model, epsilon=0.1):
+    # Get the gradients of the loss with respect to the input
+    X_tensor = tf.convert_to_tensor(X, dtype=tf.float32)
+    with tf.GradientTape() as tape:
+        tape.watch(X_tensor)
+        preds = model.predict(X_tensor)
+        loss = tf.keras.losses.binary_crossentropy(y_true=np.array([0]*len(X)), y_pred=preds)
+    
+    gradients = tape.gradient(loss, X_tensor)
+    adversarial_examples = X + epsilon * tf.sign(gradients)
+    return np.clip(adversarial_examples.numpy(), 0, 1)  # Ensure values are in valid range
+
 # Build and train the model
 model = KerasClassifier()
 class_weight = {0: 1, 1: 5}  # Give more weight to fraud cases
 model.fit(X_train_resampled, y_train_resampled, epochs=1, class_weight=class_weight)
+
+# Generate adversarial examples for testing
+X_adv_test = generate_adversarial_examples(X_test, model, epsilon=0.1)
+X_adv_test = scaler.transform(X_adv_test)  # Scale adversarial examples
 
 # Function to calculate model performance
 def get_model_performance(model, X, y, threshold=0.5):
@@ -89,10 +106,6 @@ def get_model_performance(model, X, y, threshold=0.5):
     recall = recall_score(y, y_pred, zero_division=0)  # Handle zero division
     f1 = f1_score(y, y_pred, zero_division=0)  # Handle zero division
     return acc, precision, recall, f1, y_pred
-
-# Generate adversarial examples for testing
-X_adv_test = generate_adversarial_examples(X_test, epsilon=0.1)
-X_adv_test = scaler.transform(X_adv_test)  # Scale adversarial examples
 
 # Main Streamlit app
 st.title("Fraud Detection Model Dashboard")
