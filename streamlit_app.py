@@ -75,9 +75,9 @@ def get_model_performance(model, X, y, threshold=0.5):
     y_pred_prob = model.predict(X)
     y_pred = (y_pred_prob > threshold).astype("int32")  # Use threshold tuning
     acc = accuracy_score(y, y_pred)
-    precision = precision_score(y, y_pred)
-    recall = recall_score(y, y_pred)
-    f1 = f1_score(y, y_pred)
+    precision = precision_score(y, y_pred, zero_division=0)  # Handle zero division
+    recall = recall_score(y, y_pred, zero_division=0)  # Handle zero division
+    f1 = f1_score(y, y_pred, zero_division=0)  # Handle zero division
     return acc, precision, recall, f1, y_pred
 
 # Function to create adversarial examples
@@ -88,11 +88,14 @@ def generate_adversarial_examples(X, epsilon=0.1):
     return X_adv
 
 # Generate adversarial examples
-X_adv = generate_adversarial_examples(X_test)
+X_adv = generate_adversarial_examples(X_test, epsilon=0.1)
 y_adv = y_test  # Assuming labels remain the same for this example
 
+# Normalize adversarial examples to match the training data
+X_adv = scaler.transform(X_adv)
+
 # Create a SHAP explainer
-explainer = shap.KernelExplainer(model.predict, X_train[:100])  # Limit to 100 samples for faster SHAP calculations
+explainer = shap.KernelExplainer(model.predict, X_train_resampled[:100])  # Limit to 100 samples for faster SHAP calculations
 
 # Main Streamlit app
 st.title("Fraud Detection Model Dashboard")
@@ -172,16 +175,4 @@ elif section == "Interactive Prediction Tool":
     st.subheader("Input Transaction Features")
     transaction_input = []
     for i in range(X_test.shape[1]):
-        feature_val = st.number_input(f"Feature {i+1}", value=float(X_test[0, i]))
-        transaction_input.append(feature_val)
-    
-    # Predict fraud/not fraud
-    transaction_input = np.array(transaction_input).reshape(1, -1)
-    pred = (model.predict(transaction_input) > 0.5).astype(int)[0][0]  # Adjusted threshold for prediction
-    st.write(f"Prediction: {'Fraud' if pred == 1 else 'Not Fraud'}")
-    
-    # Show SHAP explanations for the prediction
-    st.subheader("Explanation for the Prediction")
-    shap_values_input = explainer.shap_values(transaction_input)
-    shap.force_plot(explainer.expected_value, shap_values_input[0], transaction_input, matplotlib=True)
-    st.pyplot()
+        feature_val = st.number_input(f"Feature {i+1}", value=float(X_test[0
