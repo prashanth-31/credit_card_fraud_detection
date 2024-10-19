@@ -1,7 +1,7 @@
 streamlit
 pandas
 numpy
-matplotlib==3.8.0
+matplotlib
 seaborn
 shap
 scikit-learn
