@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-import shap
 from imblearn.over_sampling import SMOTE
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 from sklearn.model_selection import train_test_split
@@ -184,4 +183,6 @@ elif section == "Interactive Prediction Tool":
     transaction_input = np.array(transaction_input).reshape(1, -1)
     transaction_input_scaled = scaler.transform(transaction_input)  # Scale the input
     prediction_prob = model.predict(transaction_input_scaled)
-    prediction = "Fraud" if prediction_prob[0][0]
+    prediction = "Fraud" if prediction_prob[0][0] > 0.5 else "Not Fraud"
+    
+    st.write(f"Prediction: {prediction} (Probability: {prediction_prob[0][0]:.4f})")
