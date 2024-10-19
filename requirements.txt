@@ -6,3 +6,4 @@ seaborn
 imbalanced-learn
 tensorflow
 scikit-learn
+shap
