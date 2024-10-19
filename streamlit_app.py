@@ -157,23 +157,29 @@ elif section == "Explainability":
     st.header("Explainability with LIME")
 
     # Create a LIME explainer
-    explainer = LimeTabularExplainer(X_train_resampled, feature_names=[f'Feature {i+1}' for i in range(X_train_resampled.shape[1])],
-                                      class_names=['Not Fraud', 'Fraud'], mode='classification')
+    explainer = LimeTabularExplainer(
+        X_train_resampled,
+        feature_names=[f'Feature {i+1}' for i in range(X_train_resampled.shape[1])],
+        class_names=['Not Fraud', 'Fraud'],
+        mode='classification'
+    )
 
     # Feature importance plot
     st.subheader("Feature Importance for a Specific Prediction")
     idx = st.slider("Select Transaction Index", 0, len(X_test)-1)
     
-    # Get the explanation for the selected instance
-    exp = explainer.explain_instance(X_test[idx], model.predict, num_features=10)
-    
-    # Display the explanation
-    exp.as_pyplot_figure()
-    st.pyplot()
+    # Ensure idx is within bounds
+    if 0 <= idx < len(X_test):
+        with st.spinner('Calculating explanation...'):
+            exp = explainer.explain_instance(X_test[idx], model.predict_proba, num_features=5)
+        
+        # Display the explanation
+        exp.as_pyplot_figure()
+        st.pyplot()
 
-    # Show the instance details
-    st.write(f"Transaction: {X_test[idx]}")
-    st.write(f"Prediction Probability: {model.predict(X_test[idx].reshape(1, -1))[0][0]:.4f}")
+        # Show the instance details
+        st.write(f"Transaction: {X_test[idx]}")
+        st.write(f"Prediction Probability: {model.predict_proba(X_test[idx].reshape(1, -1))[0][1]:.4f}")  # Probability of Fraud
 
 # Interactive Prediction Tool Section
 elif section == "Interactive Prediction Tool":
