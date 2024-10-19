@@ -5,65 +5,42 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import shap
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.model_selection import train_test_split
 import tensorflow as tf
 
-
-# Load or train your model here
+# Load your trained model
 model = tf.keras.models.load_model('fraud_detection_model.h5')
 
+# Load dataset
+data = pd.read_csv('creditcards.csv')  # Replace with your actual dataset path
+X = data.iloc[:,:-1].values  # Adjust to your actual features
+y = data.iloc[:,-1].values  # Adjust to your actual target column
 
-data = pd.read_csv('creditcard.csv')
-st.write(data)
+# Split dataset into train and test sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42,stratify=y)
 
-# Load the features and labels
-X_test = data.drop('Class', axis=1).values
-y_test = data['Class'].values
+# Function to create adversarial examples
+def generate_adversarial_examples(X, epsilon=0.1):
+    noise = np.random.normal(0, epsilon, X.shape)  # Generate Gaussian noise
+    X_adv = X + noise  # Add noise to create adversarial examples
+    X_adv = np.clip(X_adv, 0, None)  # Ensure no negative values
+    return X_adv
 
-# Generate adversarial examples (as before)
-def generate_adversarial_examples(model, X_test, y_test, epsilon=0.1):
-    # Convert inputs to a tensor
-    X_test_tensor = tf.convert_to_tensor(X_test, dtype=tf.float32)
-    y_test_tensor = tf.convert_to_tensor(y_test, dtype=tf.float32)
-
-    # Create a gradient tape to record operations
-    with tf.GradientTape() as tape:
-        # Make predictions on the test set
-        tape.watch(X_test_tensor)
-        predictions = model(X_test_tensor)
-        loss = tf.keras.losses.binary_crossentropy(y_test_tensor, predictions)
-    
-    # Calculate gradients of the loss with respect to the input
-    gradients = tape.gradient(loss, X_test_tensor)
-
-    # Generate adversarial examples by adding perturbations to the original input
-    X_adv = X_test + epsilon * tf.sign(gradients)
-
-    # Clip the values to ensure they remain within the valid range
-    X_adv = tf.clip_by_value(X_adv, 0, 1)  # Assuming inputs are normalized to [0, 1]
-
-    return X_adv.numpy(), y_test  # Return as numpy arrays
-
+# Generate adversarial examples
+X_adv = generate_adversarial_examples(X_test)
+y_adv = y_test  # Assuming labels remain the same for this example
 
 # Function to calculate model performance
 def get_model_performance(model, X, y):
-    y_pred = model.predict(X)
-
-    # Reshape the predictions array (from (75000, 1) to (75000,))
-    y_pred = y_pred.ravel()  # Use .ravel() to flatten the array
-
-    # For binary classification, convert probabilities to 0 or 1 predictions
-    y_pred = (y_pred > 0.5).astype(int)
-
+    y_pred = (model.predict(X) > 0.5).astype("int32")  # Assuming binary classification with sigmoid
     acc = accuracy_score(y, y_pred)
     precision = precision_score(y, y_pred)
     recall = recall_score(y, y_pred)
     f1 = f1_score(y, y_pred)
-    
     return acc, precision, recall, f1
 
-
-# Example usage: generate adversarial examples
-X_adv, y_adv = generate_adversarial_examples(model, X_test, y_test)
+# Create a SHAP explainer
+explainer = shap.Explainer(model, X_train)
 
 # Main app
 st.title("Fraud Detection Model Dashboard")
@@ -113,10 +90,10 @@ elif section == "Adversarial Attacks":
     idx = st.slider("Select Transaction Index", 0, len(X_adv)-1)
     st.write(f"Original Transaction: {X_test[idx]}")
     st.write(f"Adversarial Transaction: {X_adv[idx]}")
-    original_pred = model.predict([X_test[idx]])[0]
-    adv_pred = model.predict([X_adv[idx]])[0]
-    st.write(f"Original Prediction: {'Fraud' if original_pred > 0.5 else 'Not Fraud'}")
-    st.write(f"Adversarial Prediction: {'Fraud' if adv_pred > 0.5 else 'Not Fraud'}")
+    original_pred = (model.predict([X_test[idx]]) > 0.5).astype(int)[0][0]
+    adv_pred = (model.predict([X_adv[idx]]) > 0.5).astype(int)[0][0]
+    st.write(f"Original Prediction: {'Fraud' if original_pred == 1 else 'Not Fraud'}")
+    st.write(f"Adversarial Prediction: {'Fraud' if adv_pred == 1 else 'Not Fraud'}")
 
 # Explainability Section
 elif section == "Explainability":
@@ -124,7 +101,7 @@ elif section == "Explainability":
     
     # Feature importance plot
     st.subheader("Feature Importance Plot (SHAP)")
-    shap_values = explainer.shap_values(X_test)
+    shap_values = explainer(X_test)
     shap.summary_plot(shap_values, X_test, show=False)
     st.pyplot()
     
@@ -132,7 +109,7 @@ elif section == "Explainability":
     st.subheader("Per-Transaction Explanation")
     idx = st.slider("Select Transaction Index", 0, len(X_test)-1)
     st.write(f"Transaction: {X_test[idx]}")
-    shap.force_plot(explainer.expected_value[1], shap_values[1][idx], X_test[idx], matplotlib=True)
+    shap.force_plot(explainer.expected_value, shap_values[idx], X_test[idx], matplotlib=True)
     st.pyplot()
 
 # Interactive Prediction Tool Section
@@ -148,10 +125,11 @@ elif section == "Interactive Prediction Tool":
     
     # Predict fraud/not fraud
     transaction_input = np.array(transaction_input).reshape(1, -1)
-    pred = model.predict(transaction_input)[0]
-    st.write(f"Prediction: {'Fraud' if pred > 0.5 else 'Not Fraud'}")
+    pred = (model.predict(transaction_input) > 0.5).astype(int)[0][0]
+    st.write(f"Prediction: {'Fraud' if pred == 1 else 'Not Fraud'}")
     
     # Show SHAP explanations for the prediction
-    shap_values_input = explainer.shap_values(transaction_input)
-    shap.force_plot(explainer.expected_value[1], shap_values_input[1], transaction_input, matplotlib=True)
+    st.subheader("Explanation for the Prediction")
+    shap_values_input = explainer(transaction_input)
+    shap.force_plot(explainer.expected_value, shap_values_input, transaction_input, matplotlib=True)
     st.pyplot()
