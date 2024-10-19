@@ -9,7 +9,6 @@ from sklearn.model_selection import train_test_split
 from sklearn.inspection import permutation_importance
 import tensorflow as tf
 from sklearn.preprocessing import StandardScaler
-from sklearn.base import BaseEstimator, ClassifierMixin
 
 # Load dataset
 data = pd.read_csv('creditcard.csv')  # Adjust with your dataset path
@@ -51,56 +50,31 @@ y_test = np.concatenate((y_test_class_0, y_test_class_1))
 smote = SMOTE(random_state=42)
 X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
 
-# Wrapper class for TensorFlow model
-class KerasClassifier(BaseEstimator, ClassifierMixin):
-    def __init__(self):
-        self.model = self.build_model()
-
-    def build_model(self):
-        model = tf.keras.Sequential([
-            tf.keras.layers.Dense(128, activation='relu', input_shape=(X_train_resampled.shape[1],)),
-            tf.keras.layers.Dropout(0.5),
-            tf.keras.layers.Dense(64, activation='relu'),
-            tf.keras.layers.Dropout(0.5),
-            tf.keras.layers.Dense(1, activation='sigmoid')  # Binary classification
-        ])
-        model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-        return model
-
-    def fit(self, X, y, epochs=1, batch_size=32, class_weight=None):
-        self.model.fit(X, y, epochs=epochs, batch_size=batch_size, class_weight=class_weight)
-
-    def predict(self, X):
-        return (self.model.predict(X) > 0.5).astype("int32")
-
-    def predict_proba(self, X):
-        return self.model.predict(X)
-
-# Function to generate adversarial examples using FGSM
-def generate_adversarial_examples(X, model, epsilon=0.1):
-    # Get the gradients of the loss with respect to the input
-    X_tensor = tf.convert_to_tensor(X, dtype=tf.float32)
-    with tf.GradientTape() as tape:
-        tape.watch(X_tensor)
-        preds = model.predict(X_tensor)
-        loss = tf.keras.losses.binary_crossentropy(y_true=np.array([0]*len(X)), y_pred=preds)
-    
-    gradients = tape.gradient(loss, X_tensor)
-    adversarial_examples = X + epsilon * tf.sign(gradients)
-    return np.clip(adversarial_examples.numpy(), 0, 1)  # Ensure values are in valid range
+# Function to build a neural network model
+def build_model():
+    model = tf.keras.Sequential([
+        tf.keras.layers.Dense(128, activation='relu', input_shape=(X_train_resampled.shape[1],)),
+        tf.keras.layers.Dropout(0.5),
+        tf.keras.layers.Dense(64, activation='relu'),
+        tf.keras.layers.Dropout(0.5),
+        tf.keras.layers.Dense(1, activation='sigmoid')  # Binary classification
+    ])
+    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+    return model
 
 # Build and train the model
-model = KerasClassifier()
-class_weight = {0: 1, 1: 5}  # Give more weight to fraud cases
-model.fit(X_train_resampled, y_train_resampled, epochs=1, class_weight=class_weight)
+model = build_model()
 
-# Generate adversarial examples for testing
-X_adv_test = generate_adversarial_examples(X_test, model, epsilon=0.1)
-X_adv_test = scaler.transform(X_adv_test)  # Scale adversarial examples
+# Class weights to handle imbalance
+class_weight = {0: 1, 1: 5}  # Give more weight to fraud cases
+
+# Train the model with the resampled dataset
+history = model.fit(X_train_resampled, y_train_resampled, epochs=10, batch_size=32, class_weight=class_weight, validation_split=0.2)
 
 # Function to calculate model performance
 def get_model_performance(model, X, y, threshold=0.5):
-    y_pred = model.predict(X)
+    y_pred_prob = model.predict(X)
+    y_pred = (y_pred_prob > threshold).astype("int32")  # Use threshold tuning
     acc = accuracy_score(y, y_pred)
     precision = precision_score(y, y_pred, zero_division=0)  # Handle zero division
     recall = recall_score(y, y_pred, zero_division=0)  # Handle zero division
@@ -112,7 +86,7 @@ st.title("Fraud Detection Model Dashboard")
 
 # Sidebar navigation
 st.sidebar.title("Navigation")
-section = st.sidebar.radio("Go to", ["Model Overview", "Adversarial Attacks", "Explainability", "Interactive Prediction Tool"])
+section = st.sidebar.radio("Go to", ["Model Overview", "Explainability", "Interactive Prediction Tool"])
 
 # Model Overview Section
 if section == "Model Overview":
@@ -126,14 +100,6 @@ if section == "Model Overview":
     st.write(f"Recall: {clean_recall:.4f}")
     st.write(f"F1-Score: {clean_f1:.4f}")
 
-    # Performance metrics on adversarial test data
-    adv_acc, adv_precision, adv_recall, adv_f1, y_pred_adv = get_model_performance(model, X_adv_test, y_test, threshold=0.5)
-    st.subheader("Performance on Adversarial Data")
-    st.write(f"Accuracy: {adv_acc:.4f}")
-    st.write(f"Precision: {adv_precision:.4f}")
-    st.write(f"Recall: {adv_recall:.4f}")
-    st.write(f"F1-Score: {adv_f1:.4f}")
-
     # Display confusion matrix for clean data
     st.subheader("Confusion Matrix for Clean Data")
     cm = confusion_matrix(y_test, y_pred)
@@ -141,26 +107,26 @@ if section == "Model Overview":
     plt.title("Confusion Matrix (Clean Data)")
     st.pyplot()
 
-    # Display confusion matrix for adversarial data
-    st.subheader("Confusion Matrix for Adversarial Data")
-    cm_adv = confusion_matrix(y_test, y_pred_adv)
-    sns.heatmap(cm_adv, annot=True, fmt="d", cmap="Blues")
-    plt.title("Confusion Matrix (Adversarial Data)")
-    st.pyplot()
-
-    # Visualize fraud vs non-fraud transaction distribution
-    st.subheader("Transaction Distribution")
-    fraud_count = pd.Series(y_test).value_counts()
-    sns.barplot(x=fraud_count.index, y=fraud_count.values)
-    plt.title('Distribution of Fraud vs Non-Fraud Transactions')
+    # Visualize training history
+    st.subheader("Training History")
+    plt.plot(history.history['accuracy'], label='accuracy')
+    plt.plot(history.history['val_accuracy'], label='val_accuracy')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    plt.title('Model Accuracy')
+    plt.legend()
     st.pyplot()
 
 # Explainability Section using Permutation Importance
 elif section == "Explainability":
     st.header("Explainability with Permutation Importance")
 
+    # Custom scoring function
+    def score_function(X, y):
+        return model.evaluate(X, y, verbose=0)[0]  # Get the loss (or you can get accuracy)
+
     # Calculate Permutation Importance
-    results = permutation_importance(model, X_test, y_test, n_repeats=30, random_state=42, n_jobs=-1)
+    results = permutation_importance(model, X_test, y_test, n_repeats=30, random_state=42, scoring=score_function)
 
     # Feature importance visualization
     st.subheader("Feature Importance Plot")
@@ -174,18 +140,11 @@ elif section == "Explainability":
 # Interactive Prediction Tool Section
 elif section == "Interactive Prediction Tool":
     st.header("Interactive Prediction Tool")
+    input_data = [st.number_input(f"Feature {i+1}", value=0.0) for i in range(X.shape[1])]
+    input_data = np.array(input_data).reshape(1, -1)
     
-    # Input features for a new transaction
-    st.subheader("Input Transaction Features")
-    transaction_input = []
-    for i in range(X_test.shape[1]):
-        feature_val = st.number_input(f"Feature {i+1}", value=float(X_test[0, i]))
-        transaction_input.append(feature_val)
-    
-    # Predict fraud/not fraud
-    transaction_input = np.array(transaction_input).reshape(1, -1)
-    transaction_input_scaled = scaler.transform(transaction_input)  # Scale the input
-    prediction_prob = model.predict(transaction_input_scaled)
-    prediction = "Fraud" if prediction_prob[0][0] > 0.5 else "Not Fraud"
-    
-    st.write(f"Prediction: {prediction} (Probability: {prediction_prob[0][0]:.4f})")
+    if st.button("Predict"):
+        prediction_prob = model.predict(input_data)
+        prediction = "Fraud" if prediction_prob[0][0] > 0.5 else "Not Fraud"
+        
+        st.write(f"Prediction: {prediction} (Probability: {prediction_prob[0][0]:.4f})")
