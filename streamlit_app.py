@@ -68,7 +68,7 @@ model = build_model()
 # Class weights to handle imbalance
 class_weight = {0: 1, 1: 5}  # Give more weight to fraud cases
 
-history = model.fit(X_train_resampled, y_train_resampled, epochs=10, batch_size=32, class_weight=class_weight, validation_split=0.2)
+history = model.fit(X_train_resampled, y_train_resampled, epochs=3, batch_size=32, class_weight=class_weight, validation_split=0.2)
 
 # Function to calculate model performance
 def get_model_performance(model, X, y, threshold=0.5):
