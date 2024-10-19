@@ -68,21 +68,8 @@ model = build_model()
 # Class weights to handle imbalance
 class_weight = {0: 1, 1: 5}  # Give more weight to fraud cases
 
-# Adversarial training: Generate adversarial examples and include them in the training set
-def generate_adversarial_examples(X, epsilon=0.1):
-    noise = np.random.normal(0, epsilon, X.shape)  # Generate Gaussian noise
-    X_adv = X + noise  # Add noise to create adversarial examples
-    X_adv = np.clip(X_adv, 0, None)  # Ensure no negative values
-    return X_adv
-
-X_adv = generate_adversarial_examples(X_train_resampled, epsilon=0.1)
-
-# Combine the original and adversarial examples
-X_combined = np.vstack((X_train_resampled, X_adv))
-y_combined = np.concatenate((y_train_resampled, y_train_resampled))  # Duplicate the labels
-
-# Train the model with the combined dataset
-history = model.fit(X_combined, y_combined, epochs=5, batch_size=32, class_weight=class_weight, validation_split=0.2)
+# Train the model
+history = model.fit(X_train_resampled, y_train_resampled, epochs=10, batch_size=32, class_weight=class_weight, validation_split=0.2)
 
 # Function to calculate model performance
 def get_model_performance(model, X, y, threshold=0.5):
@@ -94,17 +81,12 @@ def get_model_performance(model, X, y, threshold=0.5):
     f1 = f1_score(y, y_pred, zero_division=0)  # Handle zero division
     return acc, precision, recall, f1, y_pred
 
-# Generate adversarial examples for testing
-X_adv_test = generate_adversarial_examples(X_test, epsilon=0.1)
-# Normalize adversarial examples to match the training data
-X_adv_test = scaler.transform(X_adv_test)
-
 # Main Streamlit app
 st.title("Fraud Detection Model Dashboard")
 
 # Sidebar navigation
 st.sidebar.title("Navigation")
-section = st.sidebar.radio("Go to", ["Model Overview", "Adversarial Attacks", "Explainability", "Interactive Prediction Tool"])
+section = st.sidebar.radio("Go to", ["Model Overview", "Explainability", "Interactive Prediction Tool"])
 
 # Model Overview Section
 if section == "Model Overview":
@@ -118,26 +100,11 @@ if section == "Model Overview":
     st.write(f"Recall: {clean_recall:.4f}")
     st.write(f"F1-Score: {clean_f1:.4f}")
 
-    # Performance metrics on adversarial test data
-    adv_acc, adv_precision, adv_recall, adv_f1, y_pred_adv = get_model_performance(model, X_adv_test, y_test, threshold=0.5)
-    st.subheader("Performance on Adversarial Data")
-    st.write(f"Accuracy: {adv_acc:.4f}")
-    st.write(f"Precision: {adv_precision:.4f}")
-    st.write(f"Recall: {adv_recall:.4f}")
-    st.write(f"F1-Score: {adv_f1:.4f}")
-
     # Display confusion matrix for clean data
     st.subheader("Confusion Matrix for Clean Data")
     cm = confusion_matrix(y_test, y_pred)
     sns.heatmap(cm, annot=True, fmt="d", cmap="Blues")
     plt.title("Confusion Matrix (Clean Data)")
-    st.pyplot()
-
-    # Display confusion matrix for adversarial data
-    st.subheader("Confusion Matrix for Adversarial Data")
-    cm_adv = confusion_matrix(y_test, y_pred_adv)
-    sns.heatmap(cm_adv, annot=True, fmt="d", cmap="Blues")
-    plt.title("Confusion Matrix (Adversarial Data)")
     st.pyplot()
 
     # Visualize fraud vs non-fraud transaction distribution
@@ -146,11 +113,6 @@ if section == "Model Overview":
     sns.barplot(x=fraud_count.index, y=fraud_count.values)
     plt.title('Distribution of Fraud vs Non-Fraud Transactions')
     st.pyplot()
-
-# Adversarial Attacks Section (optional)
-elif section == "Adversarial Attacks":
-    st.header("Adversarial Attacks")
-    st.write("This section is optional and can be expanded based on your needs.")
 
 # Explainability Section using LIME
 elif section == "Explainability":
@@ -171,16 +133,17 @@ elif section == "Explainability":
     # Ensure idx is within bounds
     if 0 <= idx < len(X_test):
         with st.spinner('Calculating explanation...'):
-            exp = explainer.explain_instance(X_test[idx], predict_proba, num_features=5)
-        
+            exp = explainer.explain_instance(X_test[idx], model.predict, num_features=5)
+
         # Display the explanation
         exp.as_pyplot_figure()
         st.pyplot()
 
         # Show the instance details
         st.write(f"Transaction: {X_test[idx]}")
-        st.write(f"Prediction Probability: {model.predict(X_test[idx].reshape(1, -1)):.4f}")  
-        
+        st.write(f"Prediction Probability: {model.predict(X_test[idx].reshape(1, -1)):.4f}")  # Probability of Fraud
+
+# Interactive Prediction Tool Section
 elif section == "Interactive Prediction Tool":
     st.header("Interactive Prediction Tool")
     
@@ -198,4 +161,3 @@ elif section == "Interactive Prediction Tool":
     prediction = "Fraud" if prediction_prob[0][0] > 0.5 else "Not Fraud"
     
     st.subheader("Prediction Result")
-  
