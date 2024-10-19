@@ -25,13 +25,13 @@ y_class_1 = y[y == 1]
 n_class_1_train = int(len(X_class_1) * (2 / 3))
 n_class_1_test = len(X_class_1) - n_class_1_train
 
-# Split class 1
+# Split class 0 into train and test (stratify based on the remaining class proportions)
 X_train_class_1 = X_class_1[:n_class_1_train]
 y_train_class_1 = y_class_1[:n_class_1_train]
 X_test_class_1 = X_class_1[n_class_1_train:]
 y_test_class_1 = y_class_1[n_class_1_train:]
 
-# Split class 0 into train and test (stratify based on the remaining class proportions)
+# For class 0, take a proportionate split of the remaining data
 X_train_class_0, X_test_class_0, y_train_class_0, y_test_class_0 = train_test_split(
     X_class_0, y_class_0, test_size=n_class_1_test, random_state=42, stratify=y_class_0)
 
@@ -78,7 +78,7 @@ X_combined = np.vstack((X_train_resampled, X_adv))
 y_combined = np.concatenate((y_train_resampled, y_train_resampled))  # Duplicate the labels
 
 # Train the model with the combined dataset
-history = model.fit(X_combined, y_combined, epochs=5, batch_size=32, class_weight=class_weight, validation_split=0.2)
+history = model.fit(X_combined, y_combined, epochs=3, batch_size=32, class_weight=class_weight, validation_split=0.2)
 
 # Function to calculate model performance
 def get_model_performance(model, X, y, threshold=0.5):
@@ -108,7 +108,7 @@ section = st.sidebar.radio("Go to", ["Model Overview", "Adversarial Attacks", "E
 # Model Overview Section
 if section == "Model Overview":
     st.header("Model Overview")
-
+    
     # Performance metrics on clean test data
     clean_acc, clean_precision, clean_recall, clean_f1, y_pred = get_model_performance(model, X_test, y_test, threshold=0.5)
     st.subheader("Performance on Clean Data")
@@ -154,13 +154,13 @@ elif section == "Adversarial Attacks":
 # Explainability Section
 elif section == "Explainability":
     st.header("Explainability with SHAP")
-
+    
     # Feature importance plot
     st.subheader("Feature Importance Plot (SHAP)")
     shap_values = explainer.shap_values(X_test[:100])  # Limit X_test for faster visualization
     shap.summary_plot(shap_values, X_test[:100], show=False)
     st.pyplot()
-
+    
     # Per-transaction explanation
     st.subheader("Per-Transaction Explanation")
     idx = st.slider("Select Transaction Index", 0, len(X_test)-1)
@@ -171,20 +171,18 @@ elif section == "Explainability":
 # Interactive Prediction Tool Section
 elif section == "Interactive Prediction Tool":
     st.header("Interactive Prediction Tool")
-
+    
     # Input features for a new transaction
     st.subheader("Input Transaction Features")
     transaction_input = []
     for i in range(X_test.shape[1]):
         feature_val = st.number_input(f"Feature {i+1}", value=float(X_test[0, i]))
         transaction_input.append(feature_val)
-
+    
     # Predict fraud/not fraud
     transaction_input = np.array(transaction_input).reshape(1, -1)
     transaction_input_scaled = scaler.transform(transaction_input)  # Scale the input
     prediction_prob = model.predict(transaction_input_scaled)
     prediction = "Fraud" if prediction_prob[0][0] > 0.5 else "Not Fraud"
-
+    
     st.subheader("Prediction Result")
-    st.write(f"Prediction Probability: {prediction_prob[0][0]:.4f}")
-    st.write(f"Prediction: {prediction}")
