@@ -152,10 +152,6 @@ elif section == "Adversarial Attacks":
     st.header("Adversarial Attacks")
     st.write("This section is optional and can be expanded based on your needs.")
 
-# Define a prediction function that returns probabilities
-def predict_proba(X):
-    return model.predict(X).flatten()  # Flatten to convert shape from (n, 1) to (n,)
-
 # Explainability Section using LIME
 elif section == "Explainability":
     st.header("Explainability with LIME")
