@@ -9,6 +9,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.inspection import permutation_importance
 import tensorflow as tf
 from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
 
 # Load dataset
 data = pd.read_csv('creditcard.csv')  # Adjust with your dataset path
@@ -68,8 +69,8 @@ model = build_model()
 # Class weights to handle imbalance
 class_weight = {0: 1, 1: 5}  # Give more weight to fraud cases
 
-# Train the model with the resampled dataset
-history = model.fit(X_train_resampled, y_train_resampled, epochs=2, batch_size=32, class_weight=class_weight, validation_split=0.2)
+# Train the model
+history = model.fit(X_train_resampled, y_train_resampled, epochs=10, batch_size=32, class_weight=class_weight, validation_split=0.2)
 
 # Function to calculate model performance
 def get_model_performance(model, X, y, threshold=0.5):
@@ -81,19 +82,28 @@ def get_model_performance(model, X, y, threshold=0.5):
     f1 = f1_score(y, y_pred, zero_division=0)  # Handle zero division
     return acc, precision, recall, f1, y_pred
 
+# Evaluate model performance on clean test data
+clean_acc, clean_precision, clean_recall, clean_f1, y_pred = get_model_performance(model, X_test, y_test, threshold=0.5)
+
+# Create a baseline model for permutation importance
+baseline_model = LogisticRegression(max_iter=1000)
+baseline_model.fit(X_train_resampled, y_train_resampled)
+
+# Get permutation importance
+results = permutation_importance(baseline_model, X_test, y_test, n_repeats=30, random_state=42, scoring='accuracy')
+
 # Main Streamlit app
 st.title("Fraud Detection Model Dashboard")
 
 # Sidebar navigation
 st.sidebar.title("Navigation")
-section = st.sidebar.radio("Go to", ["Model Overview", "Explainability", "Interactive Prediction Tool"])
+section = st.sidebar.radio("Go to", ["Model Overview", "Permutation Importance", "Interactive Prediction Tool"])
 
 # Model Overview Section
 if section == "Model Overview":
     st.header("Model Overview")
     
     # Performance metrics on clean test data
-    clean_acc, clean_precision, clean_recall, clean_f1, y_pred = get_model_performance(model, X_test, y_test, threshold=0.5)
     st.subheader("Performance on Clean Data")
     st.write(f"Accuracy: {clean_acc:.4f}")
     st.write(f"Precision: {clean_precision:.4f}")
@@ -107,44 +117,43 @@ if section == "Model Overview":
     plt.title("Confusion Matrix (Clean Data)")
     st.pyplot()
 
-    # Visualize training history
-    st.subheader("Training History")
-    plt.plot(history.history['accuracy'], label='accuracy')
-    plt.plot(history.history['val_accuracy'], label='val_accuracy')
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy')
-    plt.title('Model Accuracy')
-    plt.legend()
+    # Visualize fraud vs non-fraud transaction distribution
+    st.subheader("Transaction Distribution")
+    fraud_count = pd.Series(y_test).value_counts()
+    sns.barplot(x=fraud_count.index, y=fraud_count.values)
+    plt.title('Distribution of Fraud vs Non-Fraud Transactions')
     st.pyplot()
 
-# Explainability Section using Permutation Importance
-elif section == "Explainability":
-    st.header("Explainability with Permutation Importance")
-
-    # Custom scoring function
-    def score_function(X, y):
-        return model.evaluate(X, y, verbose=0)[0]  # Get the loss (or you can get accuracy)
-
-    # Calculate Permutation Importance
-    results = permutation_importance(model, X_test, y_test, n_repeats=30, random_state=42, scoring=score_function)
-
-    # Feature importance visualization
+# Permutation Importance Section
+elif section == "Permutation Importance":
+    st.header("Permutation Importance")
+    
+    # Plot permutation importance
     st.subheader("Feature Importance Plot")
     sorted_idx = results.importances_mean.argsort()
-    plt.barh(range(len(sorted_idx)), results.importances_mean[sorted_idx], yerr=results.importances_std[sorted_idx])
-    plt.yticks(range(len(sorted_idx)), [f'Feature {i+1}' for i in sorted_idx])
+    plt.barh(range(len(results.importances_mean)), results.importances_mean[sorted_idx], align='center')
+    plt.yticks(range(len(results.importances_mean)), np.array(data.columns[:-1])[sorted_idx])
     plt.xlabel("Permutation Importance")
-    plt.title("Feature Importance via Permutation")
+    plt.title("Feature Importances (Permutation Importance)")
     st.pyplot()
 
 # Interactive Prediction Tool Section
 elif section == "Interactive Prediction Tool":
     st.header("Interactive Prediction Tool")
-    input_data = [st.number_input(f"Feature {i+1}", value=0.0) for i in range(X.shape[1])]
-    input_data = np.array(input_data).reshape(1, -1)
     
-    if st.button("Predict"):
-        prediction_prob = model.predict(input_data)
-        prediction = "Fraud" if prediction_prob[0][0] > 0.5 else "Not Fraud"
-        
-        st.write(f"Prediction: {prediction} (Probability: {prediction_prob[0][0]:.4f})")
+    # Input features for a new transaction
+    st.subheader("Input Transaction Features")
+    transaction_input = []
+    for i in range(X_test.shape[1]):
+        feature_val = st.number_input(f"Feature {i+1}", value=float(X_test[0, i]))
+        transaction_input.append(feature_val)
+    
+    # Predict fraud/not fraud
+    transaction_input = np.array(transaction_input).reshape(1, -1)
+    transaction_input_scaled = scaler.transform(transaction_input)  # Scale the input
+    prediction_prob = model.predict(transaction_input_scaled)
+    prediction = "Fraud" if prediction_prob[0][0] > 0.5 else "Not Fraud"
+    
+    st.subheader("Prediction Result")
+    st.write(f"Prediction Probability: {prediction_prob[0][0]:.4f}")
+    st.write(f"Final Prediction: {prediction}")
