@@ -65,7 +65,7 @@ section = st.sidebar.radio("Go to", ["Model Overview", "Adversarial Attacks", "E
 # Model Overview Section
 if section == "Model Overview":
     st.header("Model Overview")
-    
+
     # Display performance metrics on clean data
     clean_acc, clean_precision, clean_recall, clean_f1 = get_model_performance(fraud_detection_model, X_test, y_test)
     st.subheader("Performance on Clean Data")
@@ -73,7 +73,7 @@ if section == "Model Overview":
     st.write(f"Precision: {clean_precision:.4f}")
     st.write(f"Recall: {clean_recall:.4f}")
     st.write(f"F1-Score: {clean_f1:.4f}")
-    
+
     # Display performance metrics on adversarial data
     adv_acc, adv_precision, adv_recall, adv_f1 = get_model_performance(fraud_detection_model, X_adv, y_adv)
     st.subheader("Performance on Adversarial Data")
@@ -92,12 +92,12 @@ if section == "Model Overview":
 # Adversarial Attacks Section
 elif section == "Adversarial Attacks":
     st.header("Adversarial Attacks")
-    
+
     # Before vs. After Attack Comparison
     st.subheader("Before vs. After Attack")
     st.write("Model accuracy before attack: ", clean_acc)
     st.write("Model accuracy after attack: ", adv_acc)
-    
+
     # Generate adversarial example
     st.subheader("Adversarial Example")
     idx = st.slider("Select Transaction Index", 0, len(X_adv) - 1)
@@ -111,13 +111,13 @@ elif section == "Adversarial Attacks":
 # Explainability Section
 elif section == "Explainability":
     st.header("Explainability with SHAP")
-    
+
     # Feature importance plot
     st.subheader("Feature Importance Plot (SHAP)")
     shap_values = explainer(X_test)
     shap.summary_plot(shap_values, X_test, show=False)
     st.pyplot()
-    
+
     # Per-transaction explanation
     st.subheader("Per-Transaction Explanation")
     idx = st.slider("Select Transaction Index", 0, len(X_test) - 1)
@@ -128,23 +128,21 @@ elif section == "Explainability":
 # Interactive Prediction Tool Section
 elif section == "Interactive Prediction Tool":
     st.header("Interactive Prediction Tool")
-    
+
     # Input features for new transaction
     st.subheader("Input Transaction Features")
     transaction_input = []
     for i in range(X_test.shape[1]):
         feature_val = st.number_input(f"Feature {i + 1}", value=float(X_test[0, i]))
         transaction_input.append(feature_val)
-    
+
     # Predict fraud/not fraud
     transaction_input = np.array(transaction_input).reshape(1, -1)
     pred = (fraud_detection_model.predict(transaction_input) > 0.5).astype(int)[0][0]
     st.write(f"Prediction: {'Fraud' if pred == 1 else 'Not Fraud'}")
-    
+
     # Show SHAP explanations for the prediction
     st.subheader("Explanation for the Prediction")
     shap_values_input = explainer(transaction_input)
     shap.force_plot(explainer.expected_value, shap_values_input, transaction_input, matplotlib=True)
     st.pyplot()
-
-
