@@ -206,8 +206,6 @@ elif section == "Interactive Prediction Tool":
     else:
         st.write("✅ This transaction is predicted to be legitimate.")
     
-    # Show the prediction probability
-    st.write(f"Prediction Probability: {prediction_prob[0][0]:.4f}")
 
 # To run the app, use this command in the terminal:
 # streamlit run app.py
