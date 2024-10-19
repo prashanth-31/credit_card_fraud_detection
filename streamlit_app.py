@@ -19,25 +19,27 @@ y = data.iloc[:, -1].values  # Target (fraud/not fraud)
 scaler = StandardScaler()
 X = scaler.fit_transform(X)
 
-# Separate the data by class
-X_class_1 = X[y == 1]  # Fraud instances
-y_class_1 = y[y == 1]
-X_class_0 = X[y == 0]  # Non-fraud instances
-y_class_0 = y[y == 0]
+# Split dataset into training and testing sets with custom split for class 1
+class_1 = data[data['Class'] == 1]
+class_0 = data[data['Class'] == 0]
 
-# Split class 1 into train and test sets
+# Split class 1 into 70% train and 30% test
 X_train_class_1, X_test_class_1, y_train_class_1, y_test_class_1 = train_test_split(
-    X_class_1, y_class_1, test_size=0.25, random_state=42)
+    class_1.iloc[:, :-1], class_1.iloc[:, -1], test_size=0.3, random_state=42)
 
-# Split class 0 into train and test sets
+# Split class 0 into 80% train and 20% test
 X_train_class_0, X_test_class_0, y_train_class_0, y_test_class_0 = train_test_split(
-    X_class_0, y_class_0, test_size=0.2, random_state=42, stratify=y_class_0)
+    class_0.iloc[:, :-1], class_0.iloc[:, -1], test_size=0.2, random_state=42)
 
-# Combine the split datasets
-X_train = np.vstack((X_train_class_1, X_train_class_0))
-y_train = np.hstack((y_train_class_1, y_train_class_0))
-X_test = np.vstack((X_test_class_1, X_test_class_0))
-y_test = np.hstack((y_test_class_1, y_test_class_0))
+# Combine the splits
+X_train = pd.concat([X_train_class_1, X_train_class_0])
+y_train = pd.concat([y_train_class_1, y_train_class_0])
+X_test = pd.concat([X_test_class_1, X_test_class_0])
+y_test = pd.concat([y_test_class_1, y_test_class_0])
+
+# Shuffle the training and testing data
+X_train, y_train = shuffle(X_train, y_train, random_state=42)
+X_test, y_test = shuffle(X_test, y_test, random_state=42)
 
 # Apply SMOTE to balance the training set
 smote = SMOTE(random_state=42)
@@ -61,7 +63,7 @@ model = build_model()
 # Class weights to handle imbalance
 class_weight = {0: 1, 1: 5}  # Give more weight to fraud cases
 
-history = model.fit(X_train_resampled, y_train_resampled, epochs=2, batch_size=32, class_weight=class_weight, validation_split=0.2)
+history = model.fit(X_train_resampled, y_train_resampled, epochs=10, batch_size=32, class_weight=class_weight, validation_split=0.2)
 
 # Function to calculate model performance
 def get_model_performance(model, X, y, threshold=0.5):
@@ -101,6 +103,17 @@ if section == "Model Overview":
     sns.heatmap(cm, annot=True, fmt="d", cmap="Blues")
     st.pyplot()
 
+    # Generate adversarial examples
+    X_adv = generate_adversarial_examples(X_test)  # Function to be defined
+    adv_acc, adv_precision, adv_recall, adv_f1, y_adv_pred = get_model_performance(model, X_adv, y_test, threshold=0.3)
+
+    # Performance metrics on adversarial data
+    st.subheader("Performance on Adversarial Data")
+    st.write(f"Accuracy: {adv_acc:.4f}")
+    st.write(f"Precision: {adv_precision:.4f}")
+    st.write(f"Recall: {adv_recall:.4f}")
+    st.write(f"F1-Score: {adv_f1:.4f}")
+
     # Visualize fraud vs non-fraud transaction distribution
     st.subheader("Transaction Distribution")
     fraud_count = pd.Series(y_test).value_counts()
@@ -111,9 +124,7 @@ if section == "Model Overview":
 # Adversarial Attacks Section
 elif section == "Adversarial Attacks":
     st.header("Adversarial Attacks")
-    
-    # Before vs. After Attack Comparison
-    st.write("This section can be expanded based on your needs.")
+    st.write("This section is optional and can be expanded based on your needs.")
 
 # Explainability Section
 elif section == "Explainability":
