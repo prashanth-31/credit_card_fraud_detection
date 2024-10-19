@@ -152,6 +152,10 @@ elif section == "Adversarial Attacks":
     st.header("Adversarial Attacks")
     st.write("This section is optional and can be expanded based on your needs.")
 
+# Define a prediction function that returns probabilities
+def predict_proba(X):
+    return model.predict(X).flatten()  # Flatten to convert shape from (n, 1) to (n,)
+
 # Explainability Section using LIME
 elif section == "Explainability":
     st.header("Explainability with LIME")
@@ -167,11 +171,11 @@ elif section == "Explainability":
     # Feature importance plot
     st.subheader("Feature Importance for a Specific Prediction")
     idx = st.slider("Select Transaction Index", 0, len(X_test)-1)
-    
+
     # Ensure idx is within bounds
     if 0 <= idx < len(X_test):
         with st.spinner('Calculating explanation...'):
-            exp = explainer.explain_instance(X_test[idx], model.predict_proba, num_features=5)
+            exp = explainer.explain_instance(X_test[idx], predict_proba, num_features=5)
         
         # Display the explanation
         exp.as_pyplot_figure()
@@ -179,9 +183,8 @@ elif section == "Explainability":
 
         # Show the instance details
         st.write(f"Transaction: {X_test[idx]}")
-        st.write(f"Prediction Probability: {model.predict_proba(X_test[idx].reshape(1, -1))[0][1]:.4f}")  # Probability of Fraud
-
-# Interactive Prediction Tool Section
+        st.write(f"Prediction Probability: {model.predict(X_test[idx].reshape(1, -1)):.4f}")  
+        
 elif section == "Interactive Prediction Tool":
     st.header("Interactive Prediction Tool")
     
