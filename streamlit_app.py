@@ -52,13 +52,7 @@ X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
 
 # Function to build a neural network model
 def build_model():
-model = tf.keras.Sequential([
-tf.keras.layers.Dense(128, activation='relu', input_shape=(X_train_resampled.shape[1],)),
-tf.keras.layers.Dropout(0.5),
-tf.keras.layers.Dense(64, activation='relu'),
-tf.keras.layers.Dropout(0.5),
-tf.keras.layers.Dense(1, activation='sigmoid')  # Binary classification
-])
+model = tf.keras.Sequential([tf.keras.layers.Dense(128, activation='relu', input_shape=(X_train_resampled.shape[1],)),tf.keras.layers.Dropout(0.5),tf.keras.layers.Dense(64, activation='relu'),tf.keras.layers.Dropout(0.5),tf.keras.layers.Dense(1, activation='sigmoid')  # Binary classification])
 model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 return model
 
