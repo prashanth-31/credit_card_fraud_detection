@@ -15,6 +15,10 @@ data = pd.read_csv('creditcard.csv')  # Adjust with your dataset path
 X = data.iloc[:, :-1].values  # Features
 y = data.iloc[:, -1].values  # Target (fraud/not fraud)
 
+# Normalize the data
+scaler = StandardScaler()
+X = scaler.fit_transform(X)
+
 # Separate the classes
 X_class_0 = X[y == 0]
 y_class_0 = y[y == 0]
